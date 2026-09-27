@@ -4,11 +4,13 @@ Streamlit web application for converting raw audio tracks into BeatWarping mod
 packages ready for Dead as Disco.
 """
 
+import json
 import os
 from pathlib import Path
 from typing import Optional
 
 import streamlit as st
+
 
 from audio_analysis.beat_detection import (
     check_audio_signal_level,
@@ -80,7 +82,7 @@ def render_sidebar() -> None:
     if logo_path.exists():
         st.sidebar.image(str(logo_path), use_container_width=True)
 
-    st.sidebar.title("🎛️ Dead as Disco BPM")
+    st.sidebar.title("Dead as Disco BPM")
     st.sidebar.markdown(
         "Convierte pistas de audio en paquetes de mods con sincronización de tempo dinámico (**BeatWarping**) para **Dead as Disco**."
     )
@@ -90,9 +92,9 @@ def render_sidebar() -> None:
 
     ffmpeg_installed = is_ffmpeg_available()
     if ffmpeg_installed:
-        st.sidebar.success("✅ FFmpeg: Listo")
+        st.sidebar.success("FFmpeg: Listo", icon=":material/check_circle:")
     else:
-        st.sidebar.error("❌ FFmpeg: No encontrado")
+        st.sidebar.error("FFmpeg: No encontrado", icon=":material/cancel:")
         st.sidebar.caption(
             "La exportación de audio requiere FFmpeg. Instálalo vía `winget install Gyan.FFmpeg` o define la variable `FFMPEG_PATH`."
         )
@@ -133,11 +135,10 @@ def main() -> None:
         )
 
     tab_upload, tab_editor, tab_export = st.tabs([
-        "1. 📂 Subir y Analizar",
-        "2. 🚩 Editor de Banderas y Vista Previa",
-        "3. 📦 Exportar Mod",
+        ":material/upload_file: 1. Subir y Analizar",
+        ":material/tune: 2. Editor de Banderas y Vista Previa",
+        ":material/inventory_2: 3. Exportar Mod",
     ])
-
 
     # -------------------------------------------------------------
     # TAB 1: Upload & Audio Analysis
@@ -149,6 +150,99 @@ def main() -> None:
             type=["mp3", "wav", "ogg"],
             key="file_uploader",
         )
+
+        with st.expander(":material/file_open: Importar JSON de BeatWarping Existente (Opcional)", expanded=False):
+            st.caption(
+                "Si ya tienes un archivo JSON con los BPMs o deseas cargar y editar una canción existente en el juego, "
+                "impórtalo aquí para no tener que colocar los BPMs manualmente."
+            )
+            col_json1, col_json2 = st.columns(2)
+            with col_json1:
+                st.markdown("**Subir archivo `.json` de la canción:**")
+                uploaded_json = st.file_uploader(
+                    "Subir archivo .json",
+                    type=["json"],
+                    key="json_uploader",
+                    help="Archivo .json con formato BeatWarping (arreglo bpmSections)."
+                )
+                if uploaded_json is not None:
+                    if st.button("Cargar Banderas desde JSON", icon=":material/upload:", use_container_width=True):
+                        try:
+                            json_data = json.loads(uploaded_json.read().decode("utf-8"))
+                            raw_secs = json_data.get("bpmSections", [])
+                            if not raw_secs:
+                                st.error("El archivo JSON no contiene el arreglo 'bpmSections'.")
+                            else:
+                                parsed = [
+                                    BPMSection(
+                                        startTime=float(s["startTime"]),
+                                        startBeat=float(s.get("startBeat", 0.0)),
+                                        bpm=float(s["bpm"]),
+                                    )
+                                    for s in raw_secs
+                                ]
+                                validate_sections(parsed)
+                                recalc = recalculate_beats(parsed)
+                                st.session_state["bpm_sections"] = recalc
+                                st.session_state["initial_sections"] = list(recalc)
+                                st.success(f"¡Cargadas con éxito {len(recalc)} banderas de tempo desde '{uploaded_json.name}'!")
+                                st.rerun()
+                        except Exception as e:
+                            st.error(f"Error al procesar JSON: {e}")
+
+            with col_json2:
+                st.markdown("**O importar desde el juego (`ImportedSongs`):**")
+                game_dir = get_game_imported_songs_dir()
+                existing_songs = []
+                if game_dir.exists():
+                    for folder in game_dir.iterdir():
+                        if folder.is_dir():
+                            j_file = folder / f"{folder.name}.json"
+                            if j_file.exists():
+                                existing_songs.append((folder.name, j_file, folder / f"{folder.name}.ogg"))
+
+                if existing_songs:
+                    selected_game_song = st.selectbox(
+                        "Seleccionar canción del juego",
+                        options=[s[0] for s in existing_songs],
+                        key="select_game_song",
+                    )
+                    if st.button("Cargar Canción y Banderas", icon=":material/download:", use_container_width=True):
+                        try:
+                            item = next(s for s in existing_songs if s[0] == selected_game_song)
+                            j_path, ogg_path = item[1], item[2]
+                            with open(j_path, "r", encoding="utf-8") as f:
+                                json_data = json.load(f)
+                            raw_secs = json_data.get("bpmSections", [])
+                            parsed = [
+                                BPMSection(
+                                    startTime=float(s["startTime"]),
+                                    startBeat=float(s.get("startBeat", 0.0)),
+                                    bpm=float(s["bpm"]),
+                                )
+                                for s in raw_secs
+                            ]
+                            validate_sections(parsed)
+                            recalc = recalculate_beats(parsed)
+                            st.session_state["bpm_sections"] = recalc
+                            st.session_state["initial_sections"] = list(recalc)
+
+                            if ogg_path.exists():
+                                with open(ogg_path, "rb") as f:
+                                    ogg_bytes = f.read()
+                                st.session_state["audio_bytes"] = ogg_bytes
+                                st.session_state["filename"] = f"{selected_game_song}.ogg"
+                                y_loaded, sr_loaded = load_audio(ogg_bytes)
+                                st.session_state["y"] = y_loaded
+                                st.session_state["sr"] = sr_loaded
+
+                            st.success(f"¡Cargada la canción '{selected_game_song}' con {len(recalc)} banderas de tempo!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Error al cargar canción del juego: {e}")
+                else:
+                    st.caption("No se encontraron canciones en `%localappdata%\\Pagoda\\Saved\\ImportedSongs`.")
+
 
 
         if uploaded_file is not None:
@@ -195,7 +289,7 @@ def main() -> None:
             first_bpm = st.session_state["bpm_sections"][0].bpm if st.session_state["bpm_sections"] else 0
             col4.metric("BPM Inicial", f"{first_bpm:.1f}")
 
-            st.info("👉 Dirígete a **'2. Editor de Banderas y Vista Previa'** para inspeccionar la forma de onda y calibrar el tempo.")
+            st.info("Dirígete a **'2. Editor de Banderas y Vista Previa'** para inspeccionar la forma de onda y calibrar el tempo.", icon=":material/arrow_forward:")
 
     # -------------------------------------------------------------
     # TAB 2: Flag Editor & Audio Preview
@@ -224,12 +318,12 @@ def main() -> None:
 
             col_sub1, col_sub2 = st.columns([3, 1])
             with col_sub2:
-                if st.button("Restablecer a Auto-detectado", use_container_width=True):
+                if st.button("Restablecer a Auto-detectado", icon=":material/restart_alt:", use_container_width=True):
                     st.session_state["bpm_sections"] = list(st.session_state["initial_sections"])
                     st.success("Banderas restablecidas a las secciones iniciales auto-detectadas.")
                     st.rerun()
             with col_sub1:
-                with st.expander("📊 Ver Gráfica Estática de Onda (Matplotlib)", expanded=False):
+                with st.expander("Ver Gráfica Estática de Onda (Matplotlib)", icon=":material/bar_chart:", expanded=False):
                     render_waveform_view(
                         y,
                         sr,
@@ -275,7 +369,7 @@ def main() -> None:
 
             with col_exp1:
                 st.markdown("#### Descargar Paquete ZIP del Mod")
-                if st.button("Generar ZIP del Mod", key="btn_gen_zip", type="primary", use_container_width=True):
+                if st.button("Generar ZIP del Mod", icon=":material/folder_zip:", key="btn_gen_zip", type="primary", use_container_width=True):
                     with st.spinner("Transcodificando a OGG (44.1 kHz) y ensamblando paquete ZIP..."):
                         try:
                             # Transcode audio to 44.1 kHz OGG
@@ -314,7 +408,8 @@ def main() -> None:
                 if st.session_state["export_result"] is not None:
                     res: ExportResult = st.session_state["export_result"]
                     st.download_button(
-                        label=f"⬇️ Descargar {res.filename}",
+                        label=f"Descargar {res.filename}",
+                        icon=":material/download:",
                         data=res.zip_bytes,
                         file_name=res.filename,
                         mime="application/zip",
@@ -326,7 +421,7 @@ def main() -> None:
                 target_game_dir = get_game_imported_songs_dir()
                 st.caption(f"Ruta de destino: `{target_game_dir / clean_song_name}`")
 
-                if st.button("Exportar Directamente a ImportedSongs", key="btn_direct_export", use_container_width=True):
+                if st.button("Exportar Directamente a ImportedSongs", icon=":material/send_to_mobile:", key="btn_direct_export", use_container_width=True):
                     with st.spinner("Transcodificando y copiando archivos directamente a la carpeta del juego..."):
                         try:
                             ext = Path(st.session_state["filename"]).suffix.lower()
@@ -348,7 +443,6 @@ def main() -> None:
                                 ogg_bytes,
                             )
                             st.success(f"¡Mod exportado exitosamente a:\n`{out_path}`!")
-                            st.balloons()
 
                         except DependencyError as e:
                             st.error(f"Error de Dependencia: {e}")
@@ -358,6 +452,7 @@ def main() -> None:
                             st.error(f"Error de E/S de Exportación: {e}")
                         except Exception as e:
                             st.error(f"Fallo al exportar: {e}")
+
 
 
 

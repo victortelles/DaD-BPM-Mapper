@@ -27,7 +27,7 @@ def render_flag_editor(
     Returns:
         Updated list of BPMSections.
     """
-    st.subheader("🚩 Banderas de Tempo (BeatWarping)")
+    st.subheader("Banderas de Tempo (BeatWarping)")
     st.caption(
         "Gestiona las secciones de tempo para tu pista. La sección 0 es la bandera raíz obligatoria en 0.0s. "
         "Agregar, editar o eliminar banderas recalcula automáticamente los beats acumulados."
@@ -36,7 +36,7 @@ def render_flag_editor(
     current_sections = list(bpm_sections)
 
     # --- Section Addition Form ---
-    with st.expander("➕ Agregar Nueva Bandera de Tempo", expanded=False):
+    with st.expander("Agregar Nueva Bandera de Tempo", icon=":material/add_circle:", expanded=False):
         col1, col2, col3 = st.columns([2, 2, 1])
         with col1:
             new_time = st.number_input(
@@ -61,7 +61,7 @@ def render_flag_editor(
         with col3:
             st.write("")
             st.write("")
-            if st.button("Agregar Bandera", key="btn_add_flag", use_container_width=True):
+            if st.button("Agregar Bandera", key="btn_add_flag", icon=":material/add:", use_container_width=True):
                 try:
                     updated = add_marker(current_sections, start_time=new_time, bpm=new_bpm)
                     st.success(f"Bandera agregada en {new_time:.3f}s ({new_bpm:.1f} BPM)")
@@ -71,7 +71,7 @@ def render_flag_editor(
 
     # --- Section Deletion Form ---
     if len(current_sections) > 1:
-        with st.expander("🗑️ Eliminar Bandera de Tempo", expanded=False):
+        with st.expander("Eliminar Bandera de Tempo", icon=":material/delete:", expanded=False):
             col_del1, col_del2 = st.columns([3, 1])
             with col_del1:
                 # Disallow deleting index 0 in the UI options
@@ -89,7 +89,7 @@ def render_flag_editor(
             with col_del2:
                 st.write("")
                 st.write("")
-                if st.button("Eliminar", key="btn_del_flag", use_container_width=True):
+                if st.button("Eliminar", key="btn_del_flag", icon=":material/delete:", use_container_width=True):
                     try:
                         updated = delete_marker(current_sections, selected_del)
                         st.success(f"Bandera #{selected_del} eliminada")

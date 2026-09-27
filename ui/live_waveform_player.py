@@ -1,7 +1,8 @@
 """Live interactive waveform editor and audio player component for Streamlit.
 
 Provides a synchronized HTML5 Canvas + Audio player with real-time moving playhead,
-multi-level zoom, scrubbing, playback controls, and BeatWarping flag overlays.
+multi-level zoom, scrubbing, playback controls, BeatWarping flag overlays,
+and a visual/audio metronome synced to the active BPM section.
 """
 
 import base64
@@ -21,10 +22,10 @@ def render_live_waveform_player(
     y: np.ndarray,
     sr: int,
     bpm_sections: List[BPMSection],
-    title: str = "Live Waveform & BeatWarping Editor",
+    title: str = "Editor y Reproductor de Onda en Vivo",
     height: int = 500,
 ) -> None:
-    """Render the live interactive waveform editor with audio playback and real-time playhead.
+    """Render the live interactive waveform editor with audio playback, playhead, and metronome.
 
     Args:
         audio_bytes: Raw audio bytes of the track.
@@ -70,7 +71,7 @@ def render_live_waveform_player(
 
     html_content = f"""
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
 <meta charset="utf-8"/>
 <style>
@@ -84,7 +85,7 @@ def render_live_waveform_player(
   body {{
     background-color: #12141a;
     color: #e2e8f0;
-    padding: 12px;
+    padding: 10px;
     overflow: hidden;
   }}
   .player-card {{
@@ -94,6 +95,8 @@ def render_live_waveform_player(
     padding: 14px;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
   }}
+  
+  /* Top Header Bar */
   .header-bar {{
     display: flex;
     justify-content: space-between;
@@ -101,28 +104,120 @@ def render_live_waveform_player(
     margin-bottom: 10px;
     border-bottom: 1px solid #232938;
     padding-bottom: 8px;
+    flex-wrap: nowrap;
+    gap: 12px;
+  }}
+  .header-left {{
+    display: flex;
+    align-items: center;
+    gap: 12px;
   }}
   .header-title {{
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 700;
     color: #38bdf8;
     display: flex;
     align-items: center;
     gap: 6px;
+    white-space: nowrap;
+  }}
+
+  /* Metronome Widget */
+  .metronome-box {{
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #0f1218;
+    border: 1px solid #2d3748;
+    padding: 4px 10px;
+    border-radius: 6px;
+  }}
+  .metro-light {{
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #334155;
+    border: 1px solid #475569;
+    transition: background-color 0.05s ease, box-shadow 0.05s ease;
+  }}
+  .metro-light.downbeat {{
+    background: #00d4ff;
+    box-shadow: 0 0 10px #00d4ff, 0 0 16px #38bdf8;
+  }}
+  .metro-light.upbeat {{
+    background: #4ade80;
+    box-shadow: 0 0 8px #4ade80;
+  }}
+  .metro-bpm {{
+    font-family: "Courier New", Courier, monospace;
+    font-size: 13px;
+    font-weight: bold;
+    color: #f1f5f9;
+    min-width: 75px;
+  }}
+  .metro-toggle {{
+    background: transparent;
+    border: 1px solid #3b4254;
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-size: 11px;
+    cursor: pointer;
+    color: #94a3b8;
+  }}
+  .metro-toggle.active {{
+    background: #0284c7;
+    border-color: #38bdf8;
+    color: #ffffff;
+  }}
+
+  /* Time & Copy Header Right */
+  .header-right {{
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    white-space: nowrap;
   }}
   .time-display {{
     font-family: "Courier New", Courier, monospace;
-    font-size: 16px;
+    font-size: 15px;
     font-weight: bold;
     color: #f8fafc;
     background: #0f1218;
-    padding: 4px 12px;
+    padding: 4px 10px;
     border-radius: 6px;
     border: 1px solid #2d3748;
-    letter-spacing: 0.5px;
+    font-variant-numeric: tabular-nums;
   }}
   .time-current {{
     color: #00d4ff;
+  }}
+  .copy-time-btn {{
+    background: #252a37;
+    color: #e2e8f0;
+    border: 1px solid #3b4254;
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    width: 145px;
+    justify-content: center;
+    position: relative;
+  }}
+  .copy-time-btn:hover {{
+    background: #333a4c;
+    border-color: #00d4ff;
+    color: #ffffff;
+  }}
+  .copy-badge {{
+    font-size: 11px;
+    color: #4ade80;
+    font-weight: bold;
+    display: none;
   }}
 
   /* Waveform container with horizontal scroll for zoom */
@@ -155,14 +250,14 @@ def render_live_waveform_player(
     height: 220px;
   }}
 
-  /* Controls layout */
+  /* Controls layout (Rock-solid, stationary) */
   .controls-row {{
     display: flex;
-    flex-wrap: wrap;
     justify-content: space-between;
     align-items: center;
     margin-top: 12px;
-    gap: 10px;
+    gap: 12px;
+    flex-wrap: nowrap;
   }}
   .btn-group {{
     display: flex;
@@ -178,10 +273,10 @@ def render_live_waveform_player(
     font-size: 13px;
     font-weight: 600;
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: background 0.15s, border-color 0.15s;
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    gap: 5px;
   }}
   button:hover {{
     background: #333a4c;
@@ -208,6 +303,14 @@ def render_live_waveform_player(
     background: #9f1239;
   }}
 
+  /* SVG Icon Styles */
+  .icon-svg {{
+    width: 14px;
+    height: 14px;
+    fill: currentColor;
+    vertical-align: middle;
+  }}
+
   /* Zoom controls */
   .zoom-controls {{
     display: flex;
@@ -222,6 +325,9 @@ def render_live_waveform_player(
     font-size: 12px;
     color: #94a3b8;
     font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 4px;
   }}
   input[type="range"] {{
     accent-color: #00d4ff;
@@ -232,37 +338,38 @@ def render_live_waveform_player(
     font-size: 11px;
     border-radius: 4px;
   }}
-
-  /* Quick status badge */
-  .status-badge {{
-    font-size: 12px;
-    color: #94a3b8;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }}
-  .copy-notice {{
-    font-size: 11px;
-    color: #4ade80;
-    margin-left: 6px;
-    opacity: 0;
-    transition: opacity 0.3s ease;
-  }}
-  .copy-notice.show {{
-    opacity: 1;
-  }}
 </style>
 </head>
 <body>
 
 <div class="player-card">
-  <!-- Header Bar -->
+  <!-- Top Header Bar: Title, Metronome, Time & Fixed Copy Button -->
   <div class="header-bar">
-    <div class="header-title">
-      <span>🎛️ Editor y Reproductor de Onda en Vivo</span>
+    <div class="header-left">
+      <div class="header-title">
+        <svg class="icon-svg" viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+        <span>Editor de Onda en Vivo</span>
+      </div>
+
+      <!-- Metronome Visual & BPM Display -->
+      <div class="metronome-box" title="Metrónomo visual sincronizado con las banderas de BeatWarping">
+        <div class="metro-light" id="metroLight"></div>
+        <span class="metro-bpm" id="metroBpm">120.0 BPM</span>
+        <button class="metro-toggle" id="btnMetroAudio" title="Activar sonido de click del metrónomo">Click: OFF</button>
+      </div>
     </div>
-    <div class="time-display">
-      <span class="time-current" id="timeCurrent">00:00.000</span> / <span id="timeTotal">00:00.000</span>
+
+    <!-- Header Right: Timer and Independent Copy Button (Won't shift controls) -->
+    <div class="header-right">
+      <div class="time-display">
+        <span class="time-current" id="timeCurrent">00:00.000</span> / <span id="timeTotal">00:00.000</span>
+      </div>
+
+      <button class="copy-time-btn" id="btnCopyTime" title="Copiar segundo actual para crear una bandera">
+        <svg class="icon-svg" viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
+        <span id="btnCopyLabel">Copiar Tiempo</span>
+        <span class="copy-badge" id="copyBadge">✓ Copiado!</span>
+      </button>
     </div>
   </div>
 
@@ -271,14 +378,26 @@ def render_live_waveform_player(
     <canvas id="waveCanvas"></canvas>
   </div>
 
-  <!-- Transport & Zoom Controls -->
+  <!-- Transport & Zoom Controls Row (Completely Stationary) -->
   <div class="controls-row">
-    <!-- Playback buttons -->
+    <!-- Transport Buttons with SVG Icons -->
     <div class="btn-group">
-      <button id="btnPlayPause" class="btn-primary">▶ Reproducir</button>
-      <button id="btnStop">⏹ Detener</button>
-      <button id="btnSkipBack" title="Retroceder 5 segundos">⏪ -5s</button>
-      <button id="btnSkipFwd" title="Avanzar 5 segundos">⏩ +5s</button>
+      <button id="btnPlayPause" class="btn-primary">
+        <svg class="icon-svg" id="playIcon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+        <span id="playLabel">Reproducir</span>
+      </button>
+      <button id="btnStop" title="Detener reproducción">
+        <svg class="icon-svg" viewBox="0 0 24 24"><path d="M6 6h12v12H6z"/></svg>
+        <span>Detener</span>
+      </button>
+      <button id="btnSkipBack" title="Retroceder 5 segundos">
+        <svg class="icon-svg" viewBox="0 0 24 24"><path d="M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z"/></svg>
+        <span>-5s</span>
+      </button>
+      <button id="btnSkipFwd" title="Avanzar 5 segundos">
+        <span>+5s</span>
+        <svg class="icon-svg" viewBox="0 0 24 24"><path d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"/></svg>
+      </button>
       
       <!-- Speed selector -->
       <button id="btnSpeed" title="Velocidad de reproducción">1.0x</button>
@@ -286,9 +405,12 @@ def render_live_waveform_player(
 
     <!-- Zoom & Follow Controls -->
     <div class="zoom-controls">
-      <span class="zoom-label">🔍 Zoom:</span>
-      <input type="range" id="zoomSlider" min="1" max="25" value="1" step="0.5" style="width: 110px;">
-      <span id="zoomValue" style="font-size: 12px; font-weight: bold; min-width: 32px; color: #38bdf8;">1x</span>
+      <span class="zoom-label">
+        <svg class="icon-svg" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+        Zoom:
+      </span>
+      <input type="range" id="zoomSlider" min="1" max="25" value="1" step="0.5" style="width: 100px;">
+      <span id="zoomValue" style="font-size: 12px; font-weight: bold; min-width: 30px; color: #38bdf8;">1x</span>
       <button class="zoom-preset" id="btnZoomFit">Ajustar</button>
       <button class="zoom-preset" id="btnZoom5x">5x</button>
       <button class="zoom-preset" id="btnZoom15x">15x</button>
@@ -296,12 +418,6 @@ def render_live_waveform_player(
       <label style="display: flex; align-items: center; gap: 4px; font-size: 11px; color: #94a3b8; cursor: pointer; margin-left: 6px;">
         <input type="checkbox" id="chkFollow" checked> Seguir
       </label>
-    </div>
-
-    <!-- Capture time for flags -->
-    <div class="btn-group">
-      <button id="btnCopyTime" title="Copiar tiempo del cursor al portapapeles">📋 Copiar Tiempo (<span id="btnTimeSec">0.000s</span>)</button>
-      <span class="copy-notice" id="copyNotice">✓ ¡Copiado!</span>
     </div>
   </div>
 </div>
@@ -320,15 +436,17 @@ def render_live_waveform_player(
   const wrapper = document.getElementById("waveWrapper");
 
   const btnPlayPause = document.getElementById("btnPlayPause");
+  const playLabel = document.getElementById("playLabel");
+  const playIcon = document.getElementById("playIcon");
   const btnStop = document.getElementById("btnStop");
   const btnSkipBack = document.getElementById("btnSkipBack");
   const btnSkipFwd = document.getElementById("btnSkipFwd");
   const btnSpeed = document.getElementById("btnSpeed");
   const timeCurrent = document.getElementById("timeCurrent");
   const timeTotal = document.getElementById("timeTotal");
-  const btnTimeSec = document.getElementById("btnTimeSec");
   const btnCopyTime = document.getElementById("btnCopyTime");
-  const copyNotice = document.getElementById("copyNotice");
+  const btnCopyLabel = document.getElementById("btnCopyLabel");
+  const copyBadge = document.getElementById("copyBadge");
 
   const zoomSlider = document.getElementById("zoomSlider");
   const zoomValue = document.getElementById("zoomValue");
@@ -337,12 +455,62 @@ def render_live_waveform_player(
   const btnZoom15x = document.getElementById("btnZoom15x");
   const chkFollow = document.getElementById("chkFollow");
 
+  // Metronome elements
+  const metroLight = document.getElementById("metroLight");
+  const metroBpm = document.getElementById("metroBpm");
+  const btnMetroAudio = document.getElementById("btnMetroAudio");
+
   let zoomLevel = 1.0;
   let isDragging = false;
   let hoverTime = null;
   const flagColors = ["#f43f5e", "#fb923c", "#facc15", "#4ade80", "#a855f7", "#ec4899", "#38bdf8"];
   const speeds = [0.5, 0.75, 1.0, 1.25, 1.5];
   let speedIdx = 2;
+
+  // Web Audio Context for Metronome Synthesized Click
+  let audioCtx = null;
+  let metroAudioEnabled = false;
+  let lastBeatIndex = -1;
+
+  function initAudioContext() {{
+    if (!audioCtx) {{
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (AudioContextClass) {{
+        audioCtx = new AudioContextClass();
+      }}
+    }}
+    if (audioCtx && audioCtx.state === "suspended") {{
+      audioCtx.resume();
+    }}
+  }}
+
+  function playMetronomeClick(isDownbeat) {{
+    if (!audioCtx || !metroAudioEnabled) return;
+    try {{
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(isDownbeat ? 1200 : 800, audioCtx.currentTime);
+      gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.04);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.04);
+    }} catch(e) {{}}
+  }}
+
+  btnMetroAudio.addEventListener("click", () => {{
+    initAudioContext();
+    metroAudioEnabled = !metroAudioEnabled;
+    if (metroAudioEnabled) {{
+      btnMetroAudio.innerText = "Click: ON";
+      btnMetroAudio.classList.add("active");
+    }} else {{
+      btnMetroAudio.innerText = "Click: OFF";
+      btnMetroAudio.classList.remove("active");
+    }}
+  }});
 
   function formatTime(sec) {{
     if (isNaN(sec) || sec < 0) sec = 0;
@@ -364,6 +532,41 @@ def render_live_waveform_player(
   }}
 
   window.addEventListener("resize", resizeCanvas);
+
+  // Helper to find active section at current time
+  function getActiveSection(t) {{
+    let active = sections[0] || {{ startTime: 0, startBeat: 0, bpm: 120 }};
+    for (let i = 0; i < sections.length; i++) {{
+      if (t >= sections[i].startTime) {{
+        active = sections[i];
+      }} else {{
+        break;
+      }}
+    }}
+    return active;
+  }}
+
+  // Update metronome state
+  function updateMetronome(curTime) {{
+    const sec = getActiveSection(curTime);
+    metroBpm.innerText = sec.bpm.toFixed(1) + " BPM";
+
+    // Calculate current cumulative beat
+    const beat = sec.startBeat + (curTime - sec.startTime) * (sec.bpm / 60.0);
+    const beatInt = Math.floor(beat);
+    const phase = beat - beatInt;
+
+    if (!audio.paused && beatInt !== lastBeatIndex && beatInt >= 0) {{
+      lastBeatIndex = beatInt;
+      const isDownbeat = (beatInt % 4 === 0);
+      playMetronomeClick(isDownbeat);
+
+      metroLight.className = "metro-light " + (isDownbeat ? "downbeat" : "upbeat");
+      setTimeout(() => {{
+        metroLight.className = "metro-light";
+      }}, 90);
+    }}
+  }}
 
   // Drawing function
   function draw() {{
@@ -513,12 +716,12 @@ def render_live_waveform_player(
     ctx.restore();
   }}
 
-  // Continuous animation loop for butter-smooth playhead tracking
+  // Continuous animation loop for butter-smooth playhead & metronome tracking
   function animationLoop() {{
+    const curTime = audio.currentTime || 0;
     if (!audio.paused) {{
-      const curTime = audio.currentTime || 0;
       timeCurrent.innerText = formatTime(curTime);
-      btnTimeSec.innerText = curTime.toFixed(3) + "s";
+      updateMetronome(curTime);
 
       // Auto-follow playhead if enabled and zoomed in
       if (chkFollow.checked && zoomLevel > 1.0) {{
@@ -545,13 +748,14 @@ def render_live_waveform_player(
     const targetTime = (clampedX / canvas.width) * duration;
     audio.currentTime = targetTime;
     timeCurrent.innerText = formatTime(targetTime);
-    btnTimeSec.innerText = targetTime.toFixed(3) + "s";
+    updateMetronome(targetTime);
     draw();
   }}
 
   // Mouse scrub events
   canvas.addEventListener("mousedown", (e) => {{
     isDragging = true;
+    initAudioContext();
     seekToX(e.clientX);
   }});
 
@@ -581,14 +785,17 @@ def render_live_waveform_player(
 
   // Controls Event Listeners
   btnPlayPause.addEventListener("click", () => {{
+    initAudioContext();
     if (audio.paused) {{
       audio.play();
-      btnPlayPause.innerHTML = "⏸ Pausa";
+      playLabel.innerText = "Pausa";
+      playIcon.innerHTML = '<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>';
       btnPlayPause.classList.add("btn-danger");
       btnPlayPause.classList.remove("btn-primary");
     }} else {{
       audio.pause();
-      btnPlayPause.innerHTML = "▶ Reproducir";
+      playLabel.innerText = "Reproducir";
+      playIcon.innerHTML = '<path d="M8 5v14l11-7z"/>';
       btnPlayPause.classList.remove("btn-danger");
       btnPlayPause.classList.add("btn-primary");
     }}
@@ -597,25 +804,26 @@ def render_live_waveform_player(
   btnStop.addEventListener("click", () => {{
     audio.pause();
     audio.currentTime = 0;
-    btnPlayPause.innerHTML = "▶ Reproducir";
+    playLabel.innerText = "Reproducir";
+    playIcon.innerHTML = '<path d="M8 5v14l11-7z"/>';
     btnPlayPause.classList.remove("btn-danger");
     btnPlayPause.classList.add("btn-primary");
     timeCurrent.innerText = formatTime(0);
-    btnTimeSec.innerText = "0.000s";
+    updateMetronome(0);
     draw();
   }});
 
   btnSkipBack.addEventListener("click", () => {{
     audio.currentTime = Math.max(0, audio.currentTime - 5.0);
     timeCurrent.innerText = formatTime(audio.currentTime);
-    btnTimeSec.innerText = audio.currentTime.toFixed(3) + "s";
+    updateMetronome(audio.currentTime);
     draw();
   }});
 
   btnSkipFwd.addEventListener("click", () => {{
     audio.currentTime = Math.min(duration, audio.currentTime + 5.0);
     timeCurrent.innerText = formatTime(audio.currentTime);
-    btnTimeSec.innerText = audio.currentTime.toFixed(3) + "s";
+    updateMetronome(audio.currentTime);
     draw();
   }});
 
@@ -654,16 +862,19 @@ def render_live_waveform_player(
     resizeCanvas();
   }});
 
-  // Copy time to clipboard for Streamlit flag input
+  // Copy time to clipboard (Stationary in header, no shifting)
   btnCopyTime.addEventListener("click", () => {{
     const sec = audio.currentTime || 0;
     const txt = sec.toFixed(3);
     navigator.clipboard.writeText(txt).then(() => {{
-      copyNotice.classList.add("show");
-      setTimeout(() => copyNotice.classList.remove("show"), 1800);
+      btnCopyLabel.style.display = "none";
+      copyBadge.style.display = "inline";
+      setTimeout(() => {{
+        copyBadge.style.display = "none";
+        btnCopyLabel.style.display = "inline";
+      }}, 1500);
     }}).catch(() => {{
-      // Fallback
-      prompt("Copy current time:", txt);
+      prompt("Copiar tiempo actual:", txt);
     }});
   }});
 
@@ -675,8 +886,9 @@ def render_live_waveform_player(
     }}
   }});
 
-  // Initial draw
+  // Initial draw & metronome setup
   resizeCanvas();
+  updateMetronome(0);
 </script>
 </body>
 </html>
