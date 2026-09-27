@@ -1,0 +1,354 @@
+"""Dead as Disco - BPM Mapper & Song Importer.
+
+Streamlit web application for converting raw audio tracks into BeatWarping mod
+packages ready for Dead as Disco.
+"""
+
+import os
+from pathlib import Path
+from typing import Optional
+
+import streamlit as st
+
+from audio_analysis.beat_detection import (
+    check_audio_signal_level,
+    detect_tempo_sections,
+    load_audio,
+)
+from audio_analysis.bpm_sections import recalculate_beats, validate_sections
+from audio_analysis.converter import (
+    convert_audio_bytes_to_ogg,
+    is_ffmpeg_available,
+    resolve_ffmpeg_path,
+)
+from audio_analysis.exceptions import (
+    AudioProcessingError,
+    DependencyError,
+    InsufficientAudioSignalError,
+    TranscodingError,
+    ValidationError,
+)
+from export.package_builder import (
+    build_mod_zip,
+    export_to_directory,
+    generate_metadata,
+    get_game_imported_songs_dir,
+    sanitize_song_name,
+)
+from export.exceptions import ExportIOError
+from models.song_metadata import BPMSection, ExportResult
+from ui.flag_editor import render_flag_editor
+from ui.live_waveform_player import render_live_waveform_player
+from ui.player import render_audio_player
+from ui.waveform_view import render_waveform_view
+
+
+def init_session_state() -> None:
+    """Initialize Streamlit session state keys if not already present."""
+    defaults = {
+        "audio_bytes": None,
+        "filename": None,
+        "y": None,
+        "sr": None,
+        "bpm_sections": [],
+        "initial_sections": [],
+        "export_result": None,
+        "ogg_bytes": None,
+        "last_exported_song": None,
+    }
+    for key, value in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
+
+
+def reset_analysis() -> None:
+    """Clear cached audio analysis data."""
+    st.session_state["audio_bytes"] = None
+    st.session_state["filename"] = None
+    st.session_state["y"] = None
+    st.session_state["sr"] = None
+    st.session_state["bpm_sections"] = []
+    st.session_state["initial_sections"] = []
+    st.session_state["export_result"] = None
+    st.session_state["ogg_bytes"] = None
+    st.session_state["last_exported_song"] = None
+
+
+def render_sidebar() -> None:
+    """Render informative sidebar with instructions and environment status."""
+    st.sidebar.title("🎛️ Dead as Disco BPM")
+    st.sidebar.markdown(
+        "Convierte pistas de audio en paquetes de mods con sincronización de tempo dinámico (**BeatWarping**) para **Dead as Disco**."
+    )
+
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("Estado del Sistema")
+
+    ffmpeg_installed = is_ffmpeg_available()
+    if ffmpeg_installed:
+        st.sidebar.success("✅ FFmpeg: Listo")
+    else:
+        st.sidebar.error("❌ FFmpeg: No encontrado")
+        st.sidebar.caption(
+            "La exportación de audio requiere FFmpeg. Instálalo vía `winget install Gyan.FFmpeg` o define la variable `FFMPEG_PATH`."
+        )
+
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("Directorio de Destino")
+    game_dir = get_game_imported_songs_dir()
+    st.sidebar.code(str(game_dir), language="bash")
+    st.sidebar.caption(
+        "Los paquetes de mods pueden descargarse como archivo ZIP o exportarse directamente a este directorio."
+    )
+
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("Fórmula BeatWarping")
+    st.sidebar.latex(r"B_i = B_{i-1} + (T_i - T_{i-1}) \cdot \frac{\text{BPM}_{i-1}}{60}")
+
+
+def main() -> None:
+    st.set_page_config(
+        page_title="Dead as Disco – Mapeador de BPM e Importador de Canciones",
+        page_icon="🎵",
+        layout="wide",
+        initial_sidebar_state="expanded",
+    )
+
+    init_session_state()
+    render_sidebar()
+
+    st.title("🎵 Dead as Disco – Mapeador de BPM e Importador de Canciones")
+    st.markdown(
+        "Sube una canción, revisa y ajusta las banderas de tempo dinámico (**BeatWarping**), y exporta un paquete de mod listo para el juego."
+    )
+
+    tab_upload, tab_editor, tab_export = st.tabs([
+        "1. 📂 Subir y Analizar",
+        "2. 🚩 Editor de Banderas y Vista Previa",
+        "3. 📦 Exportar Mod",
+    ])
+
+    # -------------------------------------------------------------
+    # TAB 1: Upload & Audio Analysis
+    # -------------------------------------------------------------
+    with tab_upload:
+        st.subheader("Paso 1: Subir Pista de Audio")
+        uploaded_file = st.file_uploader(
+            "Selecciona un archivo de audio (.mp3, .wav, .ogg)",
+            type=["mp3", "wav", "ogg"],
+            key="file_uploader",
+        )
+
+
+        if uploaded_file is not None:
+            # Check if this is a newly uploaded file
+            if st.session_state["filename"] != uploaded_file.name:
+                raw_bytes = uploaded_file.read()
+                st.session_state["audio_bytes"] = raw_bytes
+                st.session_state["filename"] = uploaded_file.name
+                st.session_state["export_result"] = None
+                st.session_state["ogg_bytes"] = None
+
+                with st.spinner("Analizando ritmo, transitorios y secciones de tempo dinámico..."):
+                    try:
+                        y, sr = load_audio(raw_bytes)
+                        check_audio_signal_level(y)
+                        sections = detect_tempo_sections((y, sr))
+
+                        st.session_state["y"] = y
+                        st.session_state["sr"] = sr
+                        st.session_state["bpm_sections"] = sections
+                        st.session_state["initial_sections"] = list(sections)
+                        st.success(
+                            f"¡Análisis completado para '{uploaded_file.name}'! "
+                            f"Se detectaron {len(sections)} sección(es)."
+                        )
+
+                    except InsufficientAudioSignalError as err:
+                        st.error(f"Error de señal de audio: {err}")
+                        reset_analysis()
+                    except AudioProcessingError as err:
+                        st.error(f"Error de procesamiento de audio: {err}")
+                        reset_analysis()
+                    except Exception as err:
+                        st.error(f"Error inesperado durante el análisis: {err}")
+                        reset_analysis()
+
+        # Display track info if loaded
+        if st.session_state["y"] is not None and st.session_state["sr"] is not None:
+            duration = len(st.session_state["y"]) / float(st.session_state["sr"])
+            col1, col2, col3, col4 = st.columns(4)
+            col1.metric("Duración", f"{duration:.2f} s")
+            col2.metric("Frecuencia de Muestreo", f"{st.session_state['sr']} Hz")
+            col3.metric("Banderas de BPM", f"{len(st.session_state['bpm_sections'])}")
+            first_bpm = st.session_state["bpm_sections"][0].bpm if st.session_state["bpm_sections"] else 0
+            col4.metric("BPM Inicial", f"{first_bpm:.1f}")
+
+            st.info("👉 Dirígete a **'2. Editor de Banderas y Vista Previa'** para inspeccionar la forma de onda y calibrar el tempo.")
+
+    # -------------------------------------------------------------
+    # TAB 2: Flag Editor & Audio Preview
+    # -------------------------------------------------------------
+    with tab_editor:
+        if st.session_state["y"] is None:
+            st.warning("Por favor, primero sube y analiza un archivo de audio en la pestaña de Subida.")
+        else:
+            y = st.session_state["y"]
+            sr = st.session_state["sr"]
+            duration = len(y) / float(sr)
+
+            ext = Path(st.session_state["filename"]).suffix.lower().replace(".", "")
+            mime = f"audio/{ext}" if ext in ["mp3", "ogg", "wav"] else "audio/mp3"
+
+            # Render the LIVE Interactive Waveform Player with real-time playhead, zoom & scrubbing
+            render_live_waveform_player(
+                audio_bytes=st.session_state["audio_bytes"],
+                audio_format=mime,
+                y=y,
+                sr=sr,
+                bpm_sections=st.session_state["bpm_sections"],
+                title=f"Onda en Vivo: {st.session_state['filename']}",
+                height=420,
+            )
+
+            col_sub1, col_sub2 = st.columns([3, 1])
+            with col_sub2:
+                if st.button("Restablecer a Auto-detectado", use_container_width=True):
+                    st.session_state["bpm_sections"] = list(st.session_state["initial_sections"])
+                    st.success("Banderas restablecidas a las secciones iniciales auto-detectadas.")
+                    st.rerun()
+            with col_sub1:
+                with st.expander("📊 Ver Gráfica Estática de Onda (Matplotlib)", expanded=False):
+                    render_waveform_view(
+                        y,
+                        sr,
+                        st.session_state["bpm_sections"],
+                        title=f"Onda Estática: {st.session_state['filename']}",
+                    )
+
+            st.markdown("---")
+            # Interactive flag editing table
+            updated_sections = render_flag_editor(
+                st.session_state["bpm_sections"],
+                audio_duration=duration,
+            )
+            if updated_sections != st.session_state["bpm_sections"]:
+                st.session_state["bpm_sections"] = updated_sections
+                st.rerun()
+
+
+    # -------------------------------------------------------------
+    # TAB 3: Export Mod Package
+    # -------------------------------------------------------------
+    with tab_export:
+        if st.session_state["audio_bytes"] is None or not st.session_state["bpm_sections"]:
+            st.warning("Por favor, sube un archivo de audio y configura las secciones de tempo antes de exportar.")
+        else:
+            st.subheader("Paso 3: Exportar Paquete de Mod para Dead as Disco")
+
+            default_title = Path(st.session_state["filename"]).stem
+            song_title_input = st.text_input(
+                "Nombre del Mod (se limpiará para compatibilidad del sistema de archivos)",
+                value=default_title,
+                help="Solo se conservarán letras, números y guiones bajos.",
+            )
+            clean_song_name = sanitize_song_name(song_title_input)
+            st.caption(f"Identificador seguro del mod: `{clean_song_name}`")
+
+            # Show metadata preview
+            st.markdown("#### Vista Previa de Metadatos JSON")
+            metadata = generate_metadata(clean_song_name, st.session_state["bpm_sections"])
+            st.code(metadata.to_json(indent=2), language="json")
+
+            col_exp1, col_exp2 = st.columns(2)
+
+            with col_exp1:
+                st.markdown("#### Descargar Paquete ZIP del Mod")
+                if st.button("Generar ZIP del Mod", key="btn_gen_zip", type="primary", use_container_width=True):
+                    with st.spinner("Transcodificando a OGG (44.1 kHz) y ensamblando paquete ZIP..."):
+                        try:
+                            # Transcode audio to 44.1 kHz OGG
+                            ext = Path(st.session_state["filename"]).suffix.lower()
+                            ogg_path = convert_audio_bytes_to_ogg(
+                                st.session_state["audio_bytes"],
+                                source_format=ext,
+                            )
+                            with open(ogg_path, "rb") as f:
+                                ogg_bytes = f.read()
+
+                            try:
+                                ogg_path.unlink()
+                            except OSError:
+                                pass
+
+                            st.session_state["ogg_bytes"] = ogg_bytes
+                            export_res = build_mod_zip(
+                                clean_song_name,
+                                st.session_state["bpm_sections"],
+                                ogg_bytes,
+                            )
+                            st.session_state["export_result"] = export_res
+                            st.session_state["last_exported_song"] = clean_song_name
+                            st.success(f"¡Paquete de mod para '{clean_song_name}' generado exitosamente!")
+
+                        except DependencyError as e:
+                            st.error(f"Error de Dependencia: {e}")
+                        except TranscodingError as e:
+                            st.error(f"Error de Transcodificación: {e}")
+                        except ExportIOError as e:
+                            st.error(f"Error de E/S de Exportación: {e}")
+                        except Exception as e:
+                            st.error(f"Error al generar paquete: {e}")
+
+                if st.session_state["export_result"] is not None:
+                    res: ExportResult = st.session_state["export_result"]
+                    st.download_button(
+                        label=f"⬇️ Descargar {res.filename}",
+                        data=res.zip_bytes,
+                        file_name=res.filename,
+                        mime="application/zip",
+                        use_container_width=True,
+                    )
+
+            with col_exp2:
+                st.markdown("#### Exportar Directamente al Directorio del Juego")
+                target_game_dir = get_game_imported_songs_dir()
+                st.caption(f"Ruta de destino: `{target_game_dir / clean_song_name}`")
+
+                if st.button("Exportar Directamente a ImportedSongs", key="btn_direct_export", use_container_width=True):
+                    with st.spinner("Transcodificando y copiando archivos directamente a la carpeta del juego..."):
+                        try:
+                            ext = Path(st.session_state["filename"]).suffix.lower()
+                            ogg_path = convert_audio_bytes_to_ogg(
+                                st.session_state["audio_bytes"],
+                                source_format=ext,
+                            )
+                            with open(ogg_path, "rb") as f:
+                                ogg_bytes = f.read()
+
+                            try:
+                                ogg_path.unlink()
+                            except OSError:
+                                pass
+
+                            out_path = export_to_directory(
+                                clean_song_name,
+                                st.session_state["bpm_sections"],
+                                ogg_bytes,
+                            )
+                            st.success(f"¡Mod exportado exitosamente a:\n`{out_path}`!")
+                            st.balloons()
+
+                        except DependencyError as e:
+                            st.error(f"Error de Dependencia: {e}")
+                        except TranscodingError as e:
+                            st.error(f"Error de Transcodificación: {e}")
+                        except ExportIOError as e:
+                            st.error(f"Error de E/S de Exportación: {e}")
+                        except Exception as e:
+                            st.error(f"Fallo al exportar: {e}")
+
+
+
+if __name__ == "__main__":
+    main()
