@@ -162,3 +162,15 @@ def test_validation_of_invalid_bpm_and_timestamps():
     base = [BPMSection(startTime=0.0, startBeat=0.0, bpm=120.0)]
     with pytest.raises(ValidationError):
         update_marker(base, index=0, new_start_time=2.0)
+
+
+def test_format_seconds_to_min_sec():
+    """Verify conversion from float seconds to MM:SS.sss formatted strings."""
+    from ui.flag_editor import format_seconds_to_min_sec
+
+    assert format_seconds_to_min_sec(0.0) == "00:00.000"
+    assert format_seconds_to_min_sec(9.5) == "00:09.500"
+    assert format_seconds_to_min_sec(65.432) == "01:05.432"
+    assert format_seconds_to_min_sec(125.0) == "02:05.000"
+    assert format_seconds_to_min_sec(-10.0) == "00:00.000"
+

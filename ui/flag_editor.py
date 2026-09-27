@@ -14,6 +14,22 @@ from audio_analysis.exceptions import ValidationError
 from models.song_metadata import BPMSection
 
 
+def format_seconds_to_min_sec(seconds: float) -> str:
+    """Format seconds into MM:SS.sss (e.g. 01:24.500).
+    
+    Args:
+        seconds: Time in seconds.
+        
+    Returns:
+        Formatted string MM:SS.sss.
+    """
+    if seconds < 0:
+        seconds = 0.0
+    minutes = int(seconds // 60)
+    rem_sec = seconds % 60
+    return f"{minutes:02d}:{rem_sec:06.3f}"
+
+
 def render_flag_editor(
     bpm_sections: List[BPMSection],
     audio_duration: float,
@@ -48,6 +64,7 @@ def render_flag_editor(
                 format="%.3f",
                 key="new_marker_time",
             )
+            st.caption(f"Conversión: **{format_seconds_to_min_sec(new_time)}** (Min:Seg)")
         with col2:
             new_bpm = st.number_input(
                 "Tempo (BPM)",
@@ -76,7 +93,7 @@ def render_flag_editor(
             with col_del1:
                 # Disallow deleting index 0 in the UI options
                 deletable_indices = [
-                    (i, f"Bandera #{i}: {s.startTime:.2f}s | {s.bpm:.1f} BPM")
+                    (i, f"Bandera #{i}: {format_seconds_to_min_sec(s.startTime)} ({s.startTime:.2f}s) | {s.bpm:.1f} BPM")
                     for i, s in enumerate(current_sections)
                     if i > 0
                 ]
@@ -101,7 +118,8 @@ def render_flag_editor(
     df_data = [
         {
             "Sección": i,
-            "Tiempo Inicial (s)": round(s.startTime, 3),
+            "Tiempo (s)": round(s.startTime, 3),
+            "Tiempo (Min:Seg)": format_seconds_to_min_sec(s.startTime),
             "Beat Inicial": round(s.startBeat, 3),
             "BPM": round(s.bpm, 2),
             "Es Raíz": (i == 0),
@@ -114,12 +132,17 @@ def render_flag_editor(
         df,
         column_config={
             "Sección": st.column_config.NumberColumn("Sección #", disabled=True),
-            "Tiempo Inicial (s)": st.column_config.NumberColumn(
-                "Tiempo Inicial (s)",
-                help="Segundo exacto donde comienza la sección",
+            "Tiempo (s)": st.column_config.NumberColumn(
+                "Tiempo (s)",
+                help="Segundo exacto donde comienza la sección (editable)",
                 min_value=0.0,
                 max_value=float(audio_duration),
                 step=0.01,
+            ),
+            "Tiempo (Min:Seg)": st.column_config.TextColumn(
+                "Tiempo (Min:Seg)",
+                help="Conversión automática a minutos y segundos (MM:SS.sss)",
+                disabled=True,
             ),
             "Beat Inicial": st.column_config.NumberColumn(
                 "Beat Inicial (auto)",
@@ -135,7 +158,7 @@ def render_flag_editor(
             ),
             "Es Raíz": st.column_config.CheckboxColumn("Raíz (0.0s)", disabled=True),
         },
-        disabled=["Sección", "Beat Inicial", "Es Raíz"],
+        disabled=["Sección", "Tiempo (Min:Seg)", "Beat Inicial", "Es Raíz"],
         use_container_width=True,
         hide_index=True,
         key="bpm_sections_editor",
@@ -148,7 +171,7 @@ def render_flag_editor(
             for idx, row in edited_df.iterrows():
                 candidate_sections.append(
                     BPMSection(
-                        startTime=float(row["Tiempo Inicial (s)"]),
+                        startTime=float(row["Tiempo (s)"]),
                         startBeat=0.0,  # Will be recalculated
                         bpm=float(row["BPM"]),
                     )
