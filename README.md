@@ -1,6 +1,11 @@
-# Dead as Disco – BPM Mapper & Song Importer
+<div align="center">
+  <img src="Logo.PNG" alt="Dead as Disco – BPM Mapper & Song Importer" width="320"/>
+  <h1>Dead as Disco – BPM Mapper & Song Importer</h1>
+  <p><b>Herramienta web interactiva para sincronización de BeatWarping y exportación de mods</b></p>
+</div>
 
 Herramienta web interactiva (desarrollada en **Python + Streamlit**) diseñada para convertir cualquier archivo musical (`.mp3`, `.wav`, `.ogg`) en un paquete de mod listo para el juego **Dead as Disco**, con detección automática de BPM dinámico (**BeatWarping**), editor de onda sonoro en vivo con zoom y playhead en tiempo real, ajuste manual de banderas de tempo y exportación automatizada (`.ogg` a 44.1 kHz + `.json`).
+
 
 ---
 

@@ -76,6 +76,10 @@ def reset_analysis() -> None:
 
 def render_sidebar() -> None:
     """Render informative sidebar with instructions and environment status."""
+    logo_path = Path(__file__).parent / "Logo.PNG"
+    if logo_path.exists():
+        st.sidebar.image(str(logo_path), use_container_width=True)
+
     st.sidebar.title("🎛️ Dead as Disco BPM")
     st.sidebar.markdown(
         "Convierte pistas de audio en paquetes de mods con sincronización de tempo dinámico (**BeatWarping**) para **Dead as Disco**."
@@ -107,9 +111,10 @@ def render_sidebar() -> None:
 
 
 def main() -> None:
+    logo_path = Path(__file__).parent / "Logo.PNG"
     st.set_page_config(
         page_title="Dead as Disco – Mapeador de BPM e Importador de Canciones",
-        page_icon="🎵",
+        page_icon=str(logo_path) if logo_path.exists() else "🎵",
         layout="wide",
         initial_sidebar_state="expanded",
     )
@@ -117,16 +122,22 @@ def main() -> None:
     init_session_state()
     render_sidebar()
 
-    st.title("🎵 Dead as Disco – Mapeador de BPM e Importador de Canciones")
-    st.markdown(
-        "Sube una canción, revisa y ajusta las banderas de tempo dinámico (**BeatWarping**), y exporta un paquete de mod listo para el juego."
-    )
+    col_brand1, col_brand2 = st.columns([1, 6])
+    with col_brand1:
+        if logo_path.exists():
+            st.image(str(logo_path), use_container_width=True)
+    with col_brand2:
+        st.title("Dead as Disco – Mapeador de BPM e Importador")
+        st.markdown(
+            "Sube una canción, revisa y ajusta las banderas de tempo dinámico (**BeatWarping**), y exporta un paquete de mod listo para el juego."
+        )
 
     tab_upload, tab_editor, tab_export = st.tabs([
         "1. 📂 Subir y Analizar",
         "2. 🚩 Editor de Banderas y Vista Previa",
         "3. 📦 Exportar Mod",
     ])
+
 
     # -------------------------------------------------------------
     # TAB 1: Upload & Audio Analysis

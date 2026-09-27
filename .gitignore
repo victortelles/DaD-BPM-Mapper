@@ -1,3 +1,7 @@
+# Project instructions and planning artifacts
+Instrucciones.md
+openspec/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
