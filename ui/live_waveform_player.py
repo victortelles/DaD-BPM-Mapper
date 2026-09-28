@@ -424,6 +424,9 @@ def render_live_waveform_player(
       <label style="display: flex; align-items: center; gap: 4px; font-size: 11px; color: #94a3b8; cursor: pointer; margin-left: 6px;">
         <input type="checkbox" id="chkFollow" checked> Seguir
       </label>
+      <label style="display: flex; align-items: center; gap: 4px; font-size: 11px; color: #94a3b8; cursor: pointer; margin-left: 6px;" title="Mostrar u ocultar cuadrícula de beats (pulsos)">
+        <input type="checkbox" id="chkBeatGrid" checked> Cuadrícula
+      </label>
     </div>
   </div>
 </div>
@@ -462,6 +465,7 @@ def render_live_waveform_player(
   const btnZoom5x = document.getElementById("btnZoom5x");
   const btnZoom15x = document.getElementById("btnZoom15x");
   const chkFollow = document.getElementById("chkFollow");
+  const chkBeatGrid = document.getElementById("chkBeatGrid");
 
   // Metronome elements
   const metroLight = document.getElementById("metroLight");
@@ -658,6 +662,48 @@ def render_live_waveform_player(
       ctx.moveTo(0, midY);
       ctx.lineTo(w, midY);
       ctx.stroke();
+    }}
+
+    // 3.5 Draw Beat Grid (Subtle pulse lines for every individual beat)
+    if (chkBeatGrid && chkBeatGrid.checked) {{
+      for (let i = 0; i < sections.length; i++) {{
+        const sec = sections[i];
+        const nextTime = (i + 1 < sections.length) ? sections[i + 1].startTime : duration;
+        const bpm = sec.bpm;
+        if (bpm > 20) {{
+          const beatInterval = 60.0 / bpm;
+          let beatTime = sec.startTime;
+          let beatCount = 0;
+          while (beatTime < nextTime - 0.001) {{
+            const bx = (beatTime / duration) * w;
+            const isDownbeat = (beatCount % 4 === 0);
+
+            ctx.beginPath();
+            ctx.moveTo(bx, rulerHeight);
+            ctx.lineTo(bx, h);
+
+            if (isDownbeat) {{
+              ctx.strokeStyle = "rgba(255, 255, 255, 0.35)";
+              ctx.lineWidth = 1.0;
+              ctx.setLineDash([]);
+              if (zoomLevel >= 3) {{
+                ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
+                ctx.font = "9px sans-serif";
+                ctx.fillText(`b${{beatCount + 1}}`, bx + 2, h - 5);
+              }}
+            }} else {{
+              ctx.strokeStyle = "rgba(56, 189, 248, 0.18)";
+              ctx.lineWidth = 0.8;
+              ctx.setLineDash([2, 3]);
+            }}
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            beatTime += beatInterval;
+            beatCount++;
+          }}
+        }}
+      }}
     }}
 
     // 4. Draw BeatWarping Flags
@@ -935,6 +981,13 @@ def render_live_waveform_player(
         }}
       }}
       jumpToFlagTime(target);
+    }});
+  }}
+
+  // Beat grid visibility toggle listener
+  if (chkBeatGrid) {{
+    chkBeatGrid.addEventListener("change", () => {{
+      draw();
     }});
   }}
 

@@ -44,6 +44,7 @@ def test_live_waveform_player_rendering(monkeypatch):
     assert "btnPlayPause" in content
     assert "btnCopyTime" in content
     assert "metroLight" in content
+    assert "chkBeatGrid" in content
     assert "120" in content
     assert "140" in content
 
