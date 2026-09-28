@@ -88,6 +88,106 @@ def check_audio_signal_level(y: np.ndarray, dbfs_threshold: float = -60.0) -> No
         )
 
 
+def snap_to_nearest_transient(
+    target_time: float,
+    y: np.ndarray,
+    sr: int,
+    search_window: float = 0.25,
+) -> float:
+    """Snap a timestamp magnetically to the nearest strong acoustic transient peak.
+    
+    Searches within target_time +/- search_window seconds for the maximum
+    amplitude peak (e.g. kick, snare, or drop).
+    
+    Args:
+        target_time: Target timestamp in seconds.
+        y: Audio waveform array.
+        sr: Sample rate.
+        search_window: Search range in seconds (+/-).
+        
+    Returns:
+        Snapped timestamp in seconds, rounded to 3 decimals.
+    """
+    total_duration = len(y) / float(sr)
+    if target_time <= 0.0 or total_duration <= 0.0:
+        return 0.0
+
+    start_sample = int(max(0.0, target_time - search_window) * sr)
+    end_sample = int(min(total_duration, target_time + search_window) * sr)
+
+    if end_sample - start_sample < int(sr * 0.02):
+        return round(target_time, 3)
+
+    y_slice = y[start_sample:end_sample]
+    max_amp = float(np.max(np.abs(y_slice)))
+
+    # If the window is near-silent, do not snap
+    if max_amp < 0.02:
+        return round(target_time, 3)
+
+    peak_offset = int(np.argmax(np.abs(y_slice)))
+    exact_time = (start_sample + peak_offset) / float(sr)
+    return round(float(exact_time), 3)
+
+
+def estimate_local_bpm_at_time(
+    y: np.ndarray,
+    sr: int,
+    target_time: float,
+    duration: float = 6.0,
+    snap_transient: bool = True,
+) -> Tuple[float, float]:
+    """Estimate the exact local BPM from a specific timestamp forward.
+    
+    Extracts an audio segment starting at target_time (magnetically snapped to the
+    nearest kick/downbeat transient), and computes the tempo of that specific section.
+    
+    Args:
+        y: Audio waveform array.
+        sr: Sample rate.
+        target_time: Start timestamp in seconds.
+        duration: Window duration in seconds to analyze.
+        snap_transient: Whether to magnetically snap target_time to the nearest onset.
+        
+    Returns:
+        Tuple of (snapped_start_time: float, estimated_bpm: float).
+    """
+    import librosa
+
+    total_duration = len(y) / float(sr)
+    if snap_transient and target_time > 0.0:
+        snapped_time = snap_to_nearest_transient(target_time, y, sr)
+    else:
+        snapped_time = max(0.0, min(total_duration, target_time))
+
+    start_sample = int(snapped_time * sr)
+    end_sample = min(len(y), int((snapped_time + duration) * sr))
+
+    # If chunk is too short at track end, expand backward slightly or use available audio
+    if end_sample - start_sample < int(sr * 1.5):
+        chunk = y[max(0, int((snapped_time - duration) * sr)) : end_sample]
+    else:
+        chunk = y[start_sample:end_sample]
+
+    if len(chunk) < int(sr * 1.0):
+        # Fallback to global tempo if audio is insufficient
+        global_tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
+        bpm_val = float(np.atleast_1d(global_tempo)[0]) if len(np.atleast_1d(global_tempo)) > 0 else 120.0
+        return round(snapped_time, 3), round(bpm_val, 2)
+
+    try:
+        chunk_onset = librosa.onset.onset_strength(y=chunk, sr=sr)
+        # Prioritize 80 - 180 BPM range to eliminate octave/half-time errors
+        prior_bpm, _ = librosa.beat.beat_track(y=chunk, sr=sr, onset_envelope=chunk_onset, start_bpm=120.0)
+        bpm_val = float(np.atleast_1d(prior_bpm)[0])
+        if bpm_val <= 0.0 or not np.isfinite(bpm_val):
+            bpm_val = 120.0
+    except Exception:
+        bpm_val = 120.0
+
+    return round(snapped_time, 3), round(bpm_val, 2)
+
+
 def detect_tempo_sections(
     audio_source: Union[str, Path, bytes, bytearray, Tuple[np.ndarray, int]],
     min_bpm_change: float = 6.0,
@@ -219,26 +319,24 @@ def detect_tempo_sections(
     for w_start, w_bpm in window_tempos[1:]:
         bpm_diff = abs(w_bpm - current_section_bpm)
         if bpm_diff >= min_bpm_change:
-            # Locate the nearest onset or beat time around window boundary
-            nearby_events = onset_times[np.abs(onset_times - (w_start + hop_sec / 2.0)) <= hop_sec]
-            if len(nearby_events) == 0:
-                nearby_events = beat_times[np.abs(beat_times - w_start) <= hop_sec]
-
-            if len(nearby_events) > 0:
-                transition_time = float(nearby_events[0])
-            else:
-                transition_time = float(w_start)
+            # Magnetically snap to the nearest physical transient peak around the window
+            transition_time = snap_to_nearest_transient(float(w_start), y, sr, search_window=hop_sec / 2.0)
 
             # Ensure strict monotonicity (at least 1.5s separation)
             if transition_time > detected_sections[-1].startTime + 1.5:
+                # Refine local tempo starting right from this downbeat
+                _, refined_bpm = estimate_local_bpm_at_time(
+                    y, sr, transition_time, duration=window_duration_seconds, snap_transient=False
+                )
+                final_bpm = refined_bpm if refined_bpm > 0 else w_bpm
                 detected_sections.append(
                     BPMSection(
                         startTime=round(transition_time, 3),
                         startBeat=0.0,
-                        bpm=round(w_bpm, 2),
+                        bpm=round(final_bpm, 2),
                     )
                 )
-                current_section_bpm = w_bpm
+                current_section_bpm = final_bpm
 
     # Recalculate beats using BeatWarping formulas and validate
     final_sections = recalculate_beats(detected_sections)

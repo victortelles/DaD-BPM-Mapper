@@ -108,3 +108,49 @@ def test_dynamic_tempo_audio_file(tmp_path: Path):
     assert sections[1].startTime > 0.0
     assert sections[1].startBeat > 0.0
 
+
+def test_snap_to_nearest_transient():
+    """Scenario: Snapping target timestamp magnetically to nearby acoustic transient peak."""
+    from audio_analysis.beat_detection import snap_to_nearest_transient
+
+    sr = 22050
+    duration = 5.0
+    signal = np.zeros(int(sr * duration), dtype=np.float32)
+
+    # Place a transient peak at exactly 2.000s
+    peak_idx = int(2.0 * sr)
+    signal[peak_idx : peak_idx + 100] = 0.9 * np.hanning(100)
+
+    # Target slightly off (1.92s and 2.08s) should snap to ~2.000s
+    snapped1 = snap_to_nearest_transient(1.92, signal, sr, search_window=0.25)
+    assert pytest.approx(snapped1, abs=0.015) == 2.0
+
+    snapped2 = snap_to_nearest_transient(2.08, signal, sr, search_window=0.25)
+    assert pytest.approx(snapped2, abs=0.015) == 2.0
+
+
+def test_estimate_local_bpm_at_time():
+    """Scenario: Estimating local BPM from a specific timestamp forward."""
+    from audio_analysis.beat_detection import estimate_local_bpm_at_time
+
+    sr = 22050
+    duration = 10.0
+    signal = np.zeros(int(sr * duration), dtype=np.float32)
+
+    # Clicks at 120 BPM from 0 to 5s, then 150 BPM from 5 to 10s
+    for t in np.arange(0.0, 5.0, 0.5):
+        idx = int(t * sr)
+        signal[idx : idx + 100] = 0.8 * np.hanning(100)
+
+    for t in np.arange(5.0, 10.0, 0.4):
+        idx = int(t * sr)
+        signal[idx : idx + 100] = 0.8 * np.hanning(100)
+
+    # Local estimate at 1.0s should be ~120 BPM
+    t1, bpm1 = estimate_local_bpm_at_time(signal, sr, target_time=1.0, duration=4.0)
+    assert 110.0 <= bpm1 <= 130.0
+
+    # Local estimate at 5.5s should be ~150 BPM
+    t2, bpm2 = estimate_local_bpm_at_time(signal, sr, target_time=5.5, duration=4.0)
+    assert 140.0 <= bpm2 <= 160.0
+

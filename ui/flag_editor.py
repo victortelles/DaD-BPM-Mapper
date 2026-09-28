@@ -1,13 +1,19 @@
 """Interactive flag editor UI for managing BeatWarping tempo sections."""
 
 from typing import List, Optional
+import numpy as np
 import pandas as pd
 import streamlit as st
 
+from audio_analysis.beat_detection import (
+    estimate_local_bpm_at_time,
+    snap_to_nearest_transient,
+)
 from audio_analysis.bpm_sections import (
     add_marker,
     delete_marker,
     recalculate_beats,
+    update_marker,
     validate_sections,
 )
 from audio_analysis.exceptions import ValidationError
@@ -33,12 +39,16 @@ def format_seconds_to_min_sec(seconds: float) -> str:
 def render_flag_editor(
     bpm_sections: List[BPMSection],
     audio_duration: float,
+    y: Optional[np.ndarray] = None,
+    sr: Optional[int] = None,
 ) -> List[BPMSection]:
     """Render the interactive flag editor table and controls.
     
     Args:
         bpm_sections: Current list of BPMSection objects.
         audio_duration: Total audio track length in seconds.
+        y: Optional audio time series for transient snapping and local tempo estimation.
+        sr: Optional audio sample rate.
         
     Returns:
         Updated list of BPMSections.
@@ -53,7 +63,7 @@ def render_flag_editor(
 
     # --- Section Addition Form ---
     with st.expander("Agregar Nueva Bandera de Tempo", icon=":material/add_circle:", expanded=False):
-        col1, col2, col3 = st.columns([2, 2, 1])
+        col1, col2, col3 = st.columns([2, 2, 1.2])
         with col1:
             new_time = st.number_input(
                 "Tiempo de Inicio (segundos)",
@@ -78,13 +88,48 @@ def render_flag_editor(
         with col3:
             st.write("")
             st.write("")
-            if st.button("Agregar Bandera", key="btn_add_flag", icon=":material/add:", use_container_width=True):
+            if st.button("Agregar Manual", key="btn_add_flag", icon=":material/add:", use_container_width=True):
                 try:
                     updated = add_marker(current_sections, start_time=new_time, bpm=new_bpm)
                     st.success(f"Bandera agregada en {new_time:.3f}s ({new_bpm:.1f} BPM)")
                     return updated
                 except ValidationError as e:
                     st.error(f"No se puede agregar la bandera: {e}")
+
+        # Intelligent magnetic alignment and local BPM detection
+        if y is not None and sr is not None:
+            st.markdown("---")
+            col_smart1, col_smart2 = st.columns([3, 1.5])
+            with col_smart1:
+                st.caption(
+                    "🎯 **Sincronización Inteligente**: Alinea este tiempo al golpe/bombo acústico más cercano "
+                    "y calcula el tempo local exacto a partir de ese segundo."
+                )
+            with col_smart2:
+                if st.button("Alinear y Auto-Calibrar", key="btn_smart_calib", icon=":material/auto_fix_high:", use_container_width=True):
+                    snapped_t, est_bpm = estimate_local_bpm_at_time(y, sr, new_time)
+                    try:
+                        updated = add_marker(current_sections, start_time=snapped_t, bpm=est_bpm)
+                        st.success(f"¡Bandera calibrada en {snapped_t:.3f}s ({format_seconds_to_min_sec(snapped_t)}) con {est_bpm:.1f} BPM!")
+                        return updated
+                    except ValidationError as e:
+                        st.error(f"Error al calibrar bandera: {e}")
+
+    # --- Root BPM Calibration Form ---
+    if y is not None and sr is not None and len(current_sections) > 0:
+        with st.expander("Calibrar Tempo Base (Sección Raíz 0.0s)", icon=":material/speed:", expanded=False):
+            col_r1, col_r2 = st.columns([3, 1.5])
+            with col_r1:
+                st.caption(
+                    f"El BPM actual de la sección 0 es **{current_sections[0].bpm:.1f} BPM**. "
+                    "Si el ritmo inicial de la canción está acelerado o desfasado, podés recalcularlo analizando la intro (0 a 10s)."
+                )
+            with col_r2:
+                if st.button("Calibrar Intro (0 a 10s)", key="btn_calib_root", icon=":material/refresh:", use_container_width=True):
+                    _, root_bpm = estimate_local_bpm_at_time(y, sr, 0.0, duration=10.0, snap_transient=False)
+                    updated = update_marker(current_sections, index=0, new_bpm=root_bpm)
+                    st.success(f"Bandera raíz en 0.0s actualizada a {root_bpm:.1f} BPM")
+                    return updated
 
     # --- Section Deletion Form ---
     if len(current_sections) > 1:

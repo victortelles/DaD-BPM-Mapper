@@ -332,10 +332,53 @@ def main() -> None:
                     )
 
             st.markdown("---")
+            st.subheader("Sincronizador Rápido de Cambio de Ritmo")
+            st.caption(
+                "Cuando la canción cambie de velocidad (o empiece el ritmo tras una intro), pausá el reproductor, "
+                "copiá el tiempo e ingresalo acá para alinear al golpe físico y calcular el BPM automáticamente."
+            )
+            col_qc1, col_qc2 = st.columns([2, 1.5])
+            with col_qc1:
+                qc_time = st.number_input(
+                    "Segundo del cambio de ritmo:",
+                    min_value=0.0,
+                    max_value=float(duration),
+                    value=0.0,
+                    step=0.1,
+                    format="%.3f",
+                    key="qc_input_time",
+                    help="Ingresa el segundo donde notas el cambio de velocidad o inicio del ritmo.",
+                )
+            with col_qc2:
+                st.write("")
+                st.write("")
+                if st.button("Sincronizar Sección Aquí", icon=":material/auto_fix_high:", key="btn_qc_apply", use_container_width=True):
+                    from audio_analysis.beat_detection import estimate_local_bpm_at_time
+                    from audio_analysis.bpm_sections import add_marker, update_marker
+                    from audio_analysis.exceptions import ValidationError
+
+                    snapped_t, est_bpm = estimate_local_bpm_at_time(y, sr, qc_time)
+                    try:
+                        if qc_time <= 0.2:
+                            # Root marker adjustment
+                            updated = update_marker(st.session_state["bpm_sections"], index=0, new_bpm=est_bpm)
+                            st.session_state["bpm_sections"] = updated
+                            st.success(f"¡Tempo base (0.0s) calibrado a {est_bpm:.1f} BPM!")
+                        else:
+                            updated = add_marker(st.session_state["bpm_sections"], start_time=snapped_t, bpm=est_bpm)
+                            st.session_state["bpm_sections"] = updated
+                            st.success(f"¡Bandera sincronizada en {snapped_t:.3f}s con {est_bpm:.1f} BPM (alineada al golpe)!")
+                        st.rerun()
+                    except ValidationError as err:
+                        st.error(f"Error al sincronizar: {err}")
+
+            st.markdown("---")
             # Interactive flag editing table
             updated_sections = render_flag_editor(
                 st.session_state["bpm_sections"],
                 audio_duration=duration,
+                y=y,
+                sr=sr,
             )
             if updated_sections != st.session_state["bpm_sections"]:
                 st.session_state["bpm_sections"] = updated_sections
