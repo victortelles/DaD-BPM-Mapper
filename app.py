@@ -40,7 +40,7 @@ from export.package_builder import (
 )
 from export.exceptions import ExportIOError
 from models.song_metadata import BPMSection, ExportResult
-from ui.flag_editor import render_flag_editor
+from ui.flag_editor import format_seconds_to_min_sec, render_flag_editor
 from ui.live_waveform_player import render_live_waveform_player
 from ui.player import render_audio_player
 from ui.waveform_view import render_waveform_view
@@ -305,6 +305,35 @@ def main() -> None:
             ext = Path(st.session_state["filename"]).suffix.lower().replace(".", "")
             mime = f"audio/{ext}" if ext in ["mp3", "ogg", "wav"] else "audio/mp3"
 
+            # Sincronización de línea de tiempo con selección de banderas
+            flag_nav_options = [
+                (i, f"Bandera #{i}: {format_seconds_to_min_sec(s.startTime)} ({s.startTime:.3f}s) | {s.bpm:.1f} BPM")
+                for i, s in enumerate(st.session_state["bpm_sections"])
+            ]
+
+            col_nav1, col_nav2 = st.columns([3, 1.2])
+            with col_nav1:
+                selected_nav_idx = st.selectbox(
+                    "Sincronizar Línea de Tiempo con Bandera:",
+                    options=[idx for idx, _ in flag_nav_options],
+                    format_func=lambda idx: dict(flag_nav_options)[idx],
+                    key="timeline_flag_sync_select",
+                    help="Al elegir una bandera, el reproductor de onda y la línea de tiempo saltan inmediatamente a su segundo exacto.",
+                )
+            with col_nav2:
+                st.write("")
+                st.write("")
+                if st.button("Restablecer Detección", icon=":material/restart_alt:", use_container_width=True):
+                    st.session_state["bpm_sections"] = list(st.session_state["initial_sections"])
+                    st.success("Banderas restablecidas a las secciones iniciales auto-detectadas.")
+                    st.rerun()
+
+            seek_target = (
+                st.session_state["bpm_sections"][selected_nav_idx].startTime
+                if selected_nav_idx < len(st.session_state["bpm_sections"])
+                else 0.0
+            )
+
             # Render the LIVE Interactive Waveform Player with real-time playhead, zoom & scrubbing
             render_live_waveform_player(
                 audio_bytes=st.session_state["audio_bytes"],
@@ -314,28 +343,22 @@ def main() -> None:
                 bpm_sections=st.session_state["bpm_sections"],
                 title=f"Onda en Vivo: {st.session_state['filename']}",
                 height=420,
+                seek_time=seek_target,
             )
 
-            col_sub1, col_sub2 = st.columns([3, 1])
-            with col_sub2:
-                if st.button("Restablecer a Auto-detectado", icon=":material/restart_alt:", use_container_width=True):
-                    st.session_state["bpm_sections"] = list(st.session_state["initial_sections"])
-                    st.success("Banderas restablecidas a las secciones iniciales auto-detectadas.")
-                    st.rerun()
-            with col_sub1:
-                with st.expander("Ver Gráfica Estática de Onda (Matplotlib)", icon=":material/bar_chart:", expanded=False):
-                    render_waveform_view(
-                        y,
-                        sr,
-                        st.session_state["bpm_sections"],
-                        title=f"Onda Estática: {st.session_state['filename']}",
-                    )
+            with st.expander("Ver Gráfica Estática de Onda (Matplotlib)", icon=":material/bar_chart:", expanded=False):
+                render_waveform_view(
+                    y,
+                    sr,
+                    st.session_state["bpm_sections"],
+                    title=f"Onda Estática: {st.session_state['filename']}",
+                )
 
             st.markdown("---")
-            st.subheader("Sincronizador Rápido de Cambio de Ritmo")
+            st.subheader("Sincronizador Rápido de Cambio de Ritmo (Auto-BPM)")
             st.caption(
-                "Cuando la canción cambie de velocidad (o empiece el ritmo tras una intro), pausá el reproductor, "
-                "copiá el tiempo e ingresalo acá para alinear al golpe físico y calcular el BPM automáticamente."
+                "Cuando la canción cambie de velocidad o empiece el ritmo tras una intro, pausá el reproductor, "
+                "copiá el tiempo e ingresalo acá. El sistema se imantará al golpe físico y calculará el BPM automáticamente desde los picos."
             )
             col_qc1, col_qc2 = st.columns([2, 1.5])
             with col_qc1:
@@ -349,25 +372,30 @@ def main() -> None:
                     key="qc_input_time",
                     help="Ingresa el segundo donde notas el cambio de velocidad o inicio del ritmo.",
                 )
+                st.caption(f"Conversión: **{format_seconds_to_min_sec(qc_time)}** (Min:Seg)")
             with col_qc2:
                 st.write("")
                 st.write("")
-                if st.button("Sincronizar Sección Aquí", icon=":material/auto_fix_high:", key="btn_qc_apply", use_container_width=True):
-                    from audio_analysis.beat_detection import estimate_local_bpm_at_time
+                if st.button("Sincronizar Sección Aquí", icon=":material/auto_fix_high:", key="btn_qc_apply", use_container_width=True, type="primary"):
+                    from audio_analysis.beat_detection import (
+                        estimate_local_bpm_at_time,
+                        recalculate_all_bpms_from_peaks,
+                    )
                     from audio_analysis.bpm_sections import add_marker, update_marker
                     from audio_analysis.exceptions import ValidationError
 
                     snapped_t, est_bpm = estimate_local_bpm_at_time(y, sr, qc_time)
                     try:
                         if qc_time <= 0.2:
-                            # Root marker adjustment
                             updated = update_marker(st.session_state["bpm_sections"], index=0, new_bpm=est_bpm)
-                            st.session_state["bpm_sections"] = updated
-                            st.success(f"¡Tempo base (0.0s) calibrado a {est_bpm:.1f} BPM!")
+                            recalced = recalculate_all_bpms_from_peaks(updated, y, sr)
+                            st.session_state["bpm_sections"] = recalced
+                            st.success(f"¡Tempo base (0.0s) calibrado a {recalced[0].bpm:.1f} BPM!")
                         else:
                             updated = add_marker(st.session_state["bpm_sections"], start_time=snapped_t, bpm=est_bpm)
-                            st.session_state["bpm_sections"] = updated
-                            st.success(f"¡Bandera sincronizada en {snapped_t:.3f}s con {est_bpm:.1f} BPM (alineada al golpe)!")
+                            recalced = recalculate_all_bpms_from_peaks(updated, y, sr)
+                            st.session_state["bpm_sections"] = recalced
+                            st.success(f"¡Bandera sincronizada en {snapped_t:.3f}s con {est_bpm:.1f} BPM (alineada al pico)!")
                         st.rerun()
                     except ValidationError as err:
                         st.error(f"Error al sincronizar: {err}")

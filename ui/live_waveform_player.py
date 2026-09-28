@@ -24,6 +24,7 @@ def render_live_waveform_player(
     bpm_sections: List[BPMSection],
     title: str = "Editor y Reproductor de Onda en Vivo",
     height: int = 500,
+    seek_time: Optional[float] = None,
 ) -> None:
     """Render the live interactive waveform editor with audio playback, playhead, and metronome.
 
@@ -35,6 +36,7 @@ def render_live_waveform_player(
         bpm_sections: Chronologically ordered list of BPM sections.
         title: Component header.
         height: Iframe height in pixels.
+        seek_time: Optional initial timestamp to seek playhead to.
     """
     total_duration = len(y) / float(sr)
     times, envelope = downsample_waveform(y, sr, target_points=2400)
@@ -401,6 +403,10 @@ def render_live_waveform_player(
       
       <!-- Speed selector -->
       <button id="btnSpeed" title="Velocidad de reproducción">1.0x</button>
+
+      <!-- Flag jump buttons -->
+      <button id="btnPrevFlag" title="Saltar a la bandera anterior" class="zoom-preset">◀ Bandera</button>
+      <button id="btnNextFlag" title="Saltar a la bandera siguiente" class="zoom-preset">Bandera ▶</button>
     </div>
 
     <!-- Zoom & Follow Controls -->
@@ -447,6 +453,8 @@ def render_live_waveform_player(
   const btnCopyTime = document.getElementById("btnCopyTime");
   const btnCopyLabel = document.getElementById("btnCopyLabel");
   const copyBadge = document.getElementById("copyBadge");
+  const btnPrevFlag = document.getElementById("btnPrevFlag");
+  const btnNextFlag = document.getElementById("btnNextFlag");
 
   const zoomSlider = document.getElementById("zoomSlider");
   const zoomValue = document.getElementById("zoomValue");
@@ -740,6 +748,19 @@ def render_live_waveform_player(
   }}
   requestAnimationFrame(animationLoop);
 
+  // Flag jumping helper
+  function jumpToFlagTime(targetSec) {{
+    audio.currentTime = targetSec;
+    timeCurrent.innerText = formatTime(targetSec);
+    updateMetronome(targetSec);
+    if (chkFollow.checked) {{
+      const w = canvas.width;
+      const curX = (targetSec / duration) * w;
+      wrapper.scrollLeft = Math.max(0, curX - wrapper.clientWidth * 0.3);
+    }}
+    draw();
+  }}
+
   // Time seeking helper
   function seekToX(clientX) {{
     const rect = canvas.getBoundingClientRect();
@@ -752,10 +773,20 @@ def render_live_waveform_player(
     draw();
   }}
 
-  // Mouse scrub events
+  // Mouse scrub events (Clicks near a flag jump directly to that flag)
   canvas.addEventListener("mousedown", (e) => {{
     isDragging = true;
     initAudioContext();
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const w = canvas.width;
+    for (let i = 0; i < sections.length; i++) {{
+      const flagX = (sections[i].startTime / duration) * w;
+      if (Math.abs(x - flagX) <= 14) {{
+        jumpToFlagTime(sections[i].startTime);
+        return;
+      }}
+    }}
     seekToX(e.clientX);
   }});
 
@@ -878,17 +909,49 @@ def render_live_waveform_player(
     }});
   }});
 
-  // Keyboard shortcut listener (Space = Play/Pause)
-  window.addEventListener("keydown", (e) => {{
-    if (e.code === "Space" && e.target === document.body) {{
-      e.preventDefault();
-      btnPlayPause.click();
-    }}
-  }});
+  // Flag navigation listeners
+  if (btnPrevFlag) {{
+    btnPrevFlag.addEventListener("click", () => {{
+      const curTime = audio.currentTime || 0;
+      let target = sections[0].startTime;
+      for (let i = sections.length - 1; i >= 0; i--) {{
+        if (sections[i].startTime < curTime - 0.25) {{
+          target = sections[i].startTime;
+          break;
+        }}
+      }}
+      jumpToFlagTime(target);
+    }});
+  }}
+
+  if (btnNextFlag) {{
+    btnNextFlag.addEventListener("click", () => {{
+      const curTime = audio.currentTime || 0;
+      let target = sections[sections.length - 1].startTime;
+      for (let i = 0; i < sections.length; i++) {{
+        if (sections[i].startTime > curTime + 0.25) {{
+          target = sections[i].startTime;
+          break;
+        }}
+      }}
+      jumpToFlagTime(target);
+    }});
+  }}
+
+  // Initial seek if requested
+  const initialSeek = {"null" if seek_time is None else round(float(seek_time), 3)};
+  if (initialSeek !== null) {{
+    audio.currentTime = initialSeek;
+    timeCurrent.innerText = formatTime(initialSeek);
+    updateMetronome(initialSeek);
+    setTimeout(() => {{
+      jumpToFlagTime(initialSeek);
+    }}, 100);
+  }}
 
   // Initial draw & metronome setup
   resizeCanvas();
-  updateMetronome(0);
+  updateMetronome(initialSeek || 0);
 </script>
 </body>
 </html>

@@ -118,14 +118,26 @@ def snap_to_nearest_transient(
     if end_sample - start_sample < int(sr * 0.02):
         return round(target_time, 3)
 
+    from scipy.signal import find_peaks
+
     y_slice = y[start_sample:end_sample]
-    max_amp = float(np.max(np.abs(y_slice)))
+    slice_abs = np.abs(y_slice)
+    max_amp = float(np.max(slice_abs))
 
     # If the window is near-silent, do not snap
     if max_amp < 0.02:
         return round(target_time, 3)
 
-    peak_offset = int(np.argmax(np.abs(y_slice)))
+    # Detect prominent transient peaks with at least 35% of max amplitude in this slice
+    peaks, _ = find_peaks(slice_abs, height=max_amp * 0.35, distance=int(sr * 0.08))
+
+    if len(peaks) == 0:
+        peak_offset = int(np.argmax(slice_abs))
+    else:
+        target_sample_in_slice = int((target_time - (start_sample / float(sr))) * sr)
+        closest_idx = int(np.argmin(np.abs(peaks - target_sample_in_slice)))
+        peak_offset = int(peaks[closest_idx])
+
     exact_time = (start_sample + peak_offset) / float(sr)
     return round(float(exact_time), 3)
 
@@ -186,6 +198,144 @@ def estimate_local_bpm_at_time(
         bpm_val = 120.0
 
     return round(snapped_time, 3), round(bpm_val, 2)
+
+
+def calculate_bpm_from_peaks(
+    y: np.ndarray,
+    sr: int,
+    start_time: float,
+    end_time: Optional[float] = None,
+) -> float:
+    """Calculate the exact BPM of an audio segment strictly from acoustic peaks.
+    
+    Extracts onset peaks between start_time and end_time, finds the median inter-beat
+    interval, and cross-references with beat tracking to resolve octave ambiguity.
+    
+    Args:
+        y: Audio waveform array.
+        sr: Sample rate.
+        start_time: Segment start in seconds.
+        end_time: Optional segment end in seconds. If None, uses start_time + 8.0s.
+        
+    Returns:
+        Estimated BPM rounded to 2 decimal places.
+    """
+    import librosa
+
+    total_duration = len(y) / float(sr)
+    if end_time is None or end_time <= start_time:
+        end_time = min(total_duration, start_time + 8.0)
+
+    start_sample = int(max(0.0, start_time) * sr)
+    end_sample = int(min(total_duration, end_time) * sr)
+
+    # Ensure chunk has enough length (at least 1.5s)
+    if end_sample - start_sample < int(sr * 1.5):
+        end_sample = min(len(y), start_sample + int(sr * 3.0))
+        if end_sample - start_sample < int(sr * 1.5):
+            start_sample = max(0, end_sample - int(sr * 3.0))
+
+    chunk = y[start_sample:end_sample]
+    if len(chunk) < int(sr * 0.5):
+        return 120.0
+
+    try:
+        onset_env = librosa.onset.onset_strength(y=chunk, sr=sr)
+        if len(onset_env) == 0 or np.max(onset_env) < 1e-4:
+            return 120.0
+
+        # Peak detection in chunk
+        onset_frames = librosa.onset.onset_detect(onset_envelope=onset_env, sr=sr)
+        peak_times = librosa.frames_to_time(onset_frames, sr=sr)
+
+        ibi_bpm = None
+        if len(peak_times) >= 3:
+            ibis = np.diff(peak_times)
+            valid_ibis = ibis[(ibis >= 0.15) & (ibis <= 1.5)]
+            if len(valid_ibis) >= 2:
+                ibi_bpm = 60.0 / float(np.median(valid_ibis))
+
+        # Beat tracking with 120 BPM prior
+        t, _ = librosa.beat.beat_track(y=chunk, sr=sr, onset_envelope=onset_env, start_bpm=120.0)
+        bt_bpm = float(np.atleast_1d(t)[0])
+
+        if ibi_bpm is not None and 20.0 < ibi_bpm < 350.0:
+            if abs(ibi_bpm - bt_bpm) < 15.0:
+                final_bpm = ibi_bpm
+            elif abs(ibi_bpm / 2.0 - bt_bpm) < 10.0:
+                final_bpm = bt_bpm
+            elif abs(ibi_bpm * 2.0 - bt_bpm) < 10.0:
+                final_bpm = bt_bpm
+            else:
+                final_bpm = ibi_bpm
+        else:
+            final_bpm = bt_bpm if bt_bpm > 0 else 120.0
+
+        if final_bpm <= 0.0 or not np.isfinite(final_bpm):
+            final_bpm = 120.0
+
+        return round(float(final_bpm), 2)
+    except Exception:
+        return 120.0
+
+
+def recalculate_all_bpms_from_peaks(
+    bpm_sections: List[BPMSection],
+    y: np.ndarray,
+    sr: int,
+    snap_flags_to_peaks: bool = True,
+) -> List[BPMSection]:
+    """Recalculate BPM for all sections strictly from physical acoustic peaks.
+    
+    For each section, analyzes the peaks between its start time and the next section
+    (or track end), snaps the flag to the peak, and re-computes BPM and startBeat.
+    
+    Args:
+        bpm_sections: Current list of BPMSection objects.
+        y: Audio waveform array.
+        sr: Sample rate.
+        snap_flags_to_peaks: Whether to magnetically snap non-root flags to nearest transient.
+        
+    Returns:
+        Updated List[BPMSection] with auto-computed BPMs and recalculated beats.
+    """
+    total_duration = len(y) / float(sr)
+    if not bpm_sections:
+        return []
+
+    updated: List[BPMSection] = []
+    sorted_inputs = sorted(bpm_sections, key=lambda s: s.startTime)
+
+    for i, sec in enumerate(sorted_inputs):
+        # Section 0 is root and must strictly stay at 0.0s
+        if i == 0:
+            st_time = 0.0
+        elif snap_flags_to_peaks:
+            st_time = snap_to_nearest_transient(sec.startTime, y, sr)
+        else:
+            st_time = sec.startTime
+
+        # Next section timestamp or window forward
+        if i + 1 < len(sorted_inputs):
+            next_time = sorted_inputs[i + 1].startTime
+        else:
+            next_time = min(total_duration, st_time + 10.0)
+
+        # Calculate BPM from the peaks in this exact interval
+        calc_bpm = calculate_bpm_from_peaks(y, sr, start_time=st_time, end_time=next_time)
+
+        updated.append(
+            BPMSection(
+                startTime=round(st_time, 3),
+                startBeat=0.0,  # Will be recalculated
+                bpm=calc_bpm,
+            )
+        )
+
+    # Recalculate beats using BeatWarping formula and validate
+    final_sections = recalculate_beats(updated)
+    validate_sections(final_sections)
+    return final_sections
 
 
 def detect_tempo_sections(

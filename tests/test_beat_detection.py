@@ -154,3 +154,59 @@ def test_estimate_local_bpm_at_time():
     t2, bpm2 = estimate_local_bpm_at_time(signal, sr, target_time=5.5, duration=4.0)
     assert 140.0 <= bpm2 <= 160.0
 
+
+def test_calculate_bpm_from_peaks():
+    """Scenario: Calculating BPM strictly from acoustic peak intervals."""
+    from audio_analysis.beat_detection import calculate_bpm_from_peaks
+
+    sr = 22050
+    duration = 6.0
+    signal = np.zeros(int(sr * duration), dtype=np.float32)
+
+    # 130 BPM = 60 / 130 = ~0.4615s interval
+    interval = 60.0 / 130.0
+    for t in np.arange(0.0, duration, interval):
+        idx = int(t * sr)
+        if idx < len(signal):
+            signal[idx : min(len(signal), idx + 100)] = 0.9 * np.hanning(min(100, len(signal) - idx))
+
+    bpm = calculate_bpm_from_peaks(signal, sr, start_time=0.0, end_time=duration)
+    assert pytest.approx(bpm, abs=4.0) == 130.0
+
+
+def test_recalculate_all_bpms_from_peaks():
+    """Scenario: Global recalculation of all sections strictly from transient peaks."""
+    from audio_analysis.beat_detection import recalculate_all_bpms_from_peaks
+    from models.song_metadata import BPMSection
+
+    sr = 22050
+    duration = 10.0
+    signal = np.zeros(int(sr * duration), dtype=np.float32)
+
+    # Section 1: 0s to 5s at 100 BPM (0.6s interval)
+    for t in np.arange(0.0, 5.0, 0.6):
+        idx = int(t * sr)
+        signal[idx : idx + 100] = 0.9 * np.hanning(100)
+
+    # Section 2: 5s to 10s at 150 BPM (0.4s interval)
+    for t in np.arange(5.0, 10.0, 0.4):
+        idx = int(t * sr)
+        signal[idx : idx + 100] = 0.9 * np.hanning(100)
+
+    # User placed flag slightly off (4.92s) and had dummy BPMs
+    rough_sections = [
+        BPMSection(startTime=0.0, startBeat=0.0, bpm=120.0),
+        BPMSection(startTime=4.92, startBeat=0.0, bpm=120.0),
+    ]
+
+    recalculated = recalculate_all_bpms_from_peaks(rough_sections, signal, sr)
+    assert len(recalculated) == 2
+    assert recalculated[0].startTime == 0.0
+    assert 95.0 <= recalculated[0].bpm <= 105.0
+
+    # Snapped to the 5.0s transient peak
+    assert pytest.approx(recalculated[1].startTime, abs=0.02) == 5.0
+    assert 145.0 <= recalculated[1].bpm <= 155.0
+    assert recalculated[1].startBeat > 0.0
+
+

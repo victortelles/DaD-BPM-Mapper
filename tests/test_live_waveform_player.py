@@ -46,3 +46,16 @@ def test_live_waveform_player_rendering(monkeypatch):
     assert "metroLight" in content
     assert "120" in content
     assert "140" in content
+
+    # Test with seek_time parameter
+    captured_html.clear()
+    render_live_waveform_player(
+        audio_bytes=audio_bytes,
+        audio_format="audio/mp3",
+        y=y,
+        sr=sr,
+        bpm_sections=sections,
+        seek_time=1.0,
+    )
+    assert len(captured_html) == 1
+    assert "const initialSeek = 1.0;" in captured_html[0]

@@ -6,7 +6,9 @@ import pandas as pd
 import streamlit as st
 
 from audio_analysis.beat_detection import (
+    calculate_bpm_from_peaks,
     estimate_local_bpm_at_time,
+    recalculate_all_bpms_from_peaks,
     snap_to_nearest_transient,
 )
 from audio_analysis.bpm_sections import (
@@ -61,59 +63,156 @@ def render_flag_editor(
 
     current_sections = list(bpm_sections)
 
-    # --- Section Addition Form ---
-    with st.expander("Agregar Nueva Bandera de Tempo", icon=":material/add_circle:", expanded=False):
-        col1, col2, col3 = st.columns([2, 2, 1.2])
+    # --- Master Recalculation from Acoustic Peaks ---
+    if y is not None and sr is not None and len(current_sections) > 0:
+        st.markdown("### :material/auto_fix_high: Sincronización Automática por Picos Acústicos")
+        col_master1, col_master2 = st.columns([3, 1.5])
+        with col_master1:
+            st.caption(
+                "🎯 **Zero-BPM Workflow**: No necesitas adivinar ni ingresar números de BPM. "
+                "Coloca banderas en los cambios de ritmo o caídas; este botón ajusta cada bandera magnéticamente "
+                "al golpe físico más cercano y calcula automáticamente el tempo exacto a partir de los picos acústicos."
+            )
+        with col_master2:
+            st.write("")
+            if st.button(
+                "Recalcular TODOS los BPMs desde Picos",
+                key="btn_recalc_all_peaks",
+                icon=":material/auto_fix_high:",
+                use_container_width=True,
+                type="primary",
+            ):
+                updated = recalculate_all_bpms_from_peaks(current_sections, y, sr)
+                st.success(f"¡{len(updated)} banderas alineadas a los picos acústicos y BPMs recalculados!")
+                return updated
+
+    # --- Section Addition Form (Zero-BPM Input by Default) ---
+    with st.expander("Colocar Bandera en Pico (BPM Automático)", icon=":material/pin_drop:", expanded=False):
+        col1, col2 = st.columns([2.5, 1.5])
         with col1:
             new_time = st.number_input(
-                "Tiempo de Inicio (segundos)",
+                "Segundo del golpe o cambio de ritmo:",
                 min_value=0.01,
                 max_value=max(1.0, float(audio_duration)),
                 value=min(10.0, float(audio_duration) / 2.0),
                 step=0.1,
                 format="%.3f",
                 key="new_marker_time",
+                help="Ingresa el segundo aproximado. El sistema lo imantará al pico acústico más cercano.",
             )
-            st.caption(f"Conversión: **{format_seconds_to_min_sec(new_time)}** (Min:Seg)")
+            st.caption(f"Tiempo seleccionado: **{format_seconds_to_min_sec(new_time)}** (Min:Seg)")
         with col2:
-            new_bpm = st.number_input(
-                "Tempo (BPM)",
-                min_value=20.0,
-                max_value=400.0,
-                value=120.0,
-                step=1.0,
-                format="%.1f",
-                key="new_marker_bpm",
+            st.write("")
+            st.write("")
+            btn_add_peak = st.button(
+                "Colocar en Pico (Auto-BPM)",
+                key="btn_add_flag_peak",
+                icon=":material/pin_drop:",
+                use_container_width=True,
+                type="primary",
             )
-        with col3:
-            st.write("")
-            st.write("")
-            if st.button("Agregar Manual", key="btn_add_flag", icon=":material/add:", use_container_width=True):
-                try:
-                    updated = add_marker(current_sections, start_time=new_time, bpm=new_bpm)
-                    st.success(f"Bandera agregada en {new_time:.3f}s ({new_bpm:.1f} BPM)")
-                    return updated
-                except ValidationError as e:
-                    st.error(f"No se puede agregar la bandera: {e}")
 
-        # Intelligent magnetic alignment and local BPM detection
-        if y is not None and sr is not None:
-            st.markdown("---")
-            col_smart1, col_smart2 = st.columns([3, 1.5])
-            with col_smart1:
-                st.caption(
-                    "🎯 **Sincronización Inteligente**: Alinea este tiempo al golpe/bombo acústico más cercano "
-                    "y calcula el tempo local exacto a partir de ese segundo."
+        if btn_add_peak:
+            if y is not None and sr is not None:
+                snapped_t, est_bpm = estimate_local_bpm_at_time(y, sr, new_time)
+            else:
+                snapped_t, est_bpm = new_time, 120.0
+
+            try:
+                intermediate = add_marker(current_sections, start_time=snapped_t, bpm=est_bpm)
+                if y is not None and sr is not None:
+                    updated = recalculate_all_bpms_from_peaks(intermediate, y, sr)
+                else:
+                    updated = intermediate
+                st.success(f"¡Bandera fijada en {snapped_t:.3f}s ({format_seconds_to_min_sec(snapped_t)}) con {est_bpm:.1f} BPM!")
+                return updated
+            except ValidationError as e:
+                st.error(f"No se puede agregar la bandera: {e}")
+
+        # Optional manual BPM input for advanced adjustments
+        with st.expander("Ingreso manual de BPM (Opcional)", expanded=False):
+            col_m1, col_m2 = st.columns([2, 1])
+            with col_m1:
+                manual_bpm = st.number_input(
+                    "Tempo manual (BPM)",
+                    min_value=20.0,
+                    max_value=400.0,
+                    value=120.0,
+                    step=1.0,
+                    format="%.1f",
+                    key="manual_marker_bpm",
                 )
-            with col_smart2:
-                if st.button("Alinear y Auto-Calibrar", key="btn_smart_calib", icon=":material/auto_fix_high:", use_container_width=True):
-                    snapped_t, est_bpm = estimate_local_bpm_at_time(y, sr, new_time)
+            with col_m2:
+                st.write("")
+                st.write("")
+                if st.button("Agregar con BPM Manual", key="btn_add_manual", icon=":material/add:", use_container_width=True):
                     try:
-                        updated = add_marker(current_sections, start_time=snapped_t, bpm=est_bpm)
-                        st.success(f"¡Bandera calibrada en {snapped_t:.3f}s ({format_seconds_to_min_sec(snapped_t)}) con {est_bpm:.1f} BPM!")
+                        updated = add_marker(current_sections, start_time=new_time, bpm=manual_bpm)
+                        st.success(f"Bandera agregada en {new_time:.3f}s con {manual_bpm:.1f} BPM manual")
                         return updated
                     except ValidationError as e:
-                        st.error(f"Error al calibrar bandera: {e}")
+                        st.error(f"Error: {e}")
+
+    # --- Batch Addition Form (Multiple Flags by Timestamps) ---
+    with st.expander("Colocar Múltiples Banderas a la Vez (Auto-BPM por Picos)", icon=":material/playlist_add:", expanded=False):
+        st.caption(
+            "Ingresa los segundos de varias banderas separados por comas (por ejemplo: `14.5, 32.0, 58.4, 91.2`). "
+            "El sistema imantará cada segundo a su pico acústico más cercano y calculará los BPMs automáticamente."
+        )
+        batch_times_str = st.text_input(
+            "Tiempos en segundos (separados por comas):",
+            placeholder="ej: 15.2, 34.0, 68.5, 102.3",
+            key="input_batch_flag_times",
+        )
+        if st.button("Colocar y Sincronizar Todas", key="btn_batch_add", icon=":material/bolt:", use_container_width=True):
+            if not batch_times_str.strip():
+                st.warning("Ingresa al menos un segundo.")
+            else:
+                try:
+                    raw_parts = [p.strip() for p in batch_times_str.replace(";", ",").split(",") if p.strip()]
+                    parsed_times = []
+                    for p in raw_parts:
+                        val = float(p)
+                        if 0.05 < val < audio_duration:
+                            parsed_times.append(val)
+
+                    if not parsed_times:
+                        st.warning(f"No se ingresaron tiempos válidos dentro de la duración de la canción (0.1s a {audio_duration:.1f}s).")
+                    else:
+                        temp_sections = list(current_sections)
+                        added_count = 0
+                        for t in sorted(parsed_times):
+                            if y is not None and sr is not None:
+                                snapped_t = snap_to_nearest_transient(t, y, sr)
+                            else:
+                                snapped_t = round(t, 3)
+
+                            # Avoid duplicate flags too close to existing ones (< 0.25s)
+                            if any(abs(s.startTime - snapped_t) < 0.25 for s in temp_sections):
+                                continue
+
+                            temp_sections.append(
+                                BPMSection(
+                                    startTime=snapped_t,
+                                    startBeat=0.0,
+                                    bpm=120.0,
+                                )
+                            )
+                            added_count += 1
+
+                        if added_count == 0:
+                            st.info("Todas las marcas de tiempo ingresadas ya existen o están muy cerca de banderas actuales.")
+                        else:
+                            temp_sections = sorted(temp_sections, key=lambda s: s.startTime)
+                            if y is not None and sr is not None:
+                                updated = recalculate_all_bpms_from_peaks(temp_sections, y, sr)
+                            else:
+                                updated = recalculate_beats(temp_sections)
+
+                            st.success(f"¡Se colocaron {added_count} banderas alineadas a los picos y se sincronizaron todos los BPMs!")
+                            return updated
+                except Exception as err:
+                    st.error(f"Error al procesar los tiempos múltiples: {err}")
 
     # --- Root BPM Calibration Form ---
     if y is not None and sr is not None and len(current_sections) > 0:
