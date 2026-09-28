@@ -40,6 +40,9 @@ from export.package_builder import (
 )
 from export.exceptions import ExportIOError
 from models.song_metadata import BPMSection, ExportResult
+import importlib
+import ui.live_waveform_player
+importlib.reload(ui.live_waveform_player)
 from ui.flag_editor import format_seconds_to_min_sec, render_flag_editor
 from ui.live_waveform_player import render_live_waveform_player
 from ui.player import render_audio_player
@@ -295,14 +298,14 @@ def main() -> None:
     # TAB 2: Flag Editor & Audio Preview
     # -------------------------------------------------------------
     with tab_editor:
-        if st.session_state["y"] is None:
+        if st.session_state["y"] is None or st.session_state["audio_bytes"] is None:
             st.warning("Por favor, primero sube y analiza un archivo de audio en la pestaña de Subida.")
         else:
             y = st.session_state["y"]
             sr = st.session_state["sr"]
             duration = len(y) / float(sr)
 
-            ext = Path(st.session_state["filename"]).suffix.lower().replace(".", "")
+            ext = Path(st.session_state["filename"]).suffix.lower().replace(".", "") if st.session_state["filename"] else "mp3"
             mime = f"audio/{ext}" if ext in ["mp3", "ogg", "wav"] else "audio/mp3"
 
             # Sincronización de línea de tiempo con selección de banderas
@@ -311,28 +314,32 @@ def main() -> None:
                 for i, s in enumerate(st.session_state["bpm_sections"])
             ]
 
-            col_nav1, col_nav2 = st.columns([3, 1.2])
-            with col_nav1:
-                selected_nav_idx = st.selectbox(
-                    "Sincronizar Línea de Tiempo con Bandera:",
-                    options=[idx for idx, _ in flag_nav_options],
-                    format_func=lambda idx: dict(flag_nav_options)[idx],
-                    key="timeline_flag_sync_select",
-                    help="Al elegir una bandera, el reproductor de onda y la línea de tiempo saltan inmediatamente a su segundo exacto.",
-                )
-            with col_nav2:
-                st.write("")
-                st.write("")
-                if st.button("Restablecer Detección", icon=":material/restart_alt:", use_container_width=True):
-                    st.session_state["bpm_sections"] = list(st.session_state["initial_sections"])
-                    st.success("Banderas restablecidas a las secciones iniciales auto-detectadas.")
-                    st.rerun()
+            selected_nav_idx = 0
+            if flag_nav_options:
+                col_nav1, col_nav2 = st.columns([3, 1.2])
+                with col_nav1:
+                    selected_nav_idx = st.selectbox(
+                        "Sincronizar Línea de Tiempo con Bandera:",
+                        options=[idx for idx, _ in flag_nav_options],
+                        format_func=lambda idx: dict(flag_nav_options)[idx],
+                        key="timeline_flag_sync_select",
+                        help="Al elegir una bandera, el reproductor de onda y la línea de tiempo saltan inmediatamente a su segundo exacto.",
+                    )
+                with col_nav2:
+                    st.write("")
+                    st.write("")
+                    if st.button("Restablecer Detección", icon=":material/restart_alt:", use_container_width=True):
+                        st.session_state["bpm_sections"] = list(st.session_state["initial_sections"])
+                        st.success("Banderas restablecidas a las secciones iniciales auto-detectadas.")
+                        st.rerun()
 
-            seek_target = (
-                st.session_state["bpm_sections"][selected_nav_idx].startTime
-                if selected_nav_idx < len(st.session_state["bpm_sections"])
-                else 0.0
-            )
+            seek_target = 0.0
+            if (
+                selected_nav_idx is not None
+                and isinstance(selected_nav_idx, int)
+                and 0 <= selected_nav_idx < len(st.session_state["bpm_sections"])
+            ):
+                seek_target = float(st.session_state["bpm_sections"][selected_nav_idx].startTime)
 
             # Render the LIVE Interactive Waveform Player with real-time playhead, zoom & scrubbing
             render_live_waveform_player(

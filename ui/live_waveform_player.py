@@ -25,6 +25,7 @@ def render_live_waveform_player(
     title: str = "Editor y Reproductor de Onda en Vivo",
     height: int = 500,
     seek_time: Optional[float] = None,
+    **kwargs,
 ) -> None:
     """Render the live interactive waveform editor with audio playback, playhead, and metronome.
 
@@ -37,7 +38,33 @@ def render_live_waveform_player(
         title: Component header.
         height: Iframe height in pixels.
         seek_time: Optional initial timestamp to seek playhead to.
+        **kwargs: Additional keyword arguments for forward/backward compatibility.
     """
+    if audio_bytes is None:
+        st.warning("No se proporcionaron los datos de audio para el reproductor en vivo.")
+        return
+
+    # Handle UploadedFile or BytesIO defensively if passed
+    if hasattr(audio_bytes, "getvalue"):
+        audio_bytes = audio_bytes.getvalue()
+    elif hasattr(audio_bytes, "read") and callable(audio_bytes.read):
+        audio_bytes = audio_bytes.read()
+
+    if not isinstance(audio_bytes, (bytes, bytearray)):
+        st.error("Formato de audio no válido para el reproductor.")
+        return
+
+    if y is None or sr is None or sr <= 0 or len(y) == 0:
+        st.warning("Datos de forma de onda no disponibles.")
+        return
+
+    initial_seek_str = "null"
+    if seek_time is not None:
+        try:
+            initial_seek_str = str(round(float(seek_time), 3))
+        except (ValueError, TypeError):
+            initial_seek_str = "null"
+
     total_duration = len(y) / float(sr)
     times, envelope = downsample_waveform(y, sr, target_points=2400)
 
@@ -992,7 +1019,7 @@ def render_live_waveform_player(
   }}
 
   // Initial seek if requested
-  const initialSeek = {"null" if seek_time is None else round(float(seek_time), 3)};
+  const initialSeek = {initial_seek_str};
   if (initialSeek !== null) {{
     audio.currentTime = initialSeek;
     timeCurrent.innerText = formatTime(initialSeek);
