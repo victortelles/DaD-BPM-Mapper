@@ -84,10 +84,10 @@ def test_zip_archive_bundle_generation():
     assert result.filename == f"{song_name}.zip"
     assert len(result.zip_bytes) > 0
 
-    # Inspect zip contents
+    # Inspect zip contents (must NOT contain duplicate root files)
     with zipfile.ZipFile(io.BytesIO(result.zip_bytes), "r") as zf:
         namelist = zf.namelist()
-        # Verify package has internal directory structure deployable to ImportedSongs
+        assert len(namelist) == 2
         assert f"{song_name}/{song_name}.json" in namelist
         assert f"{song_name}/{song_name}.ogg" in namelist
 
@@ -98,6 +98,30 @@ def test_zip_archive_bundle_generation():
 
         # Verify audio bytes match
         assert zf.read(f"{song_name}/{song_name}.ogg") == fake_ogg_bytes
+
+
+def test_zip_archive_with_mp3_audio():
+    """Scenario: ZIP archive bundle generation with untouched original MP3 audio."""
+    song_name = "Original_Beats"
+    sections = create_initial_sections(120.0)
+    fake_mp3_bytes = b"ID3_FAKE_MP3_AUDIO_BYTES_UNTOUCHED"
+
+    result = build_mod_zip(
+        song_name,
+        sections,
+        fake_mp3_bytes,
+        audio_filename=f"{song_name}.mp3",
+    )
+
+    with zipfile.ZipFile(io.BytesIO(result.zip_bytes), "r") as zf:
+        namelist = zf.namelist()
+        assert len(namelist) == 2
+        assert f"{song_name}/{song_name}.json" in namelist
+        assert f"{song_name}/{song_name}.mp3" in namelist
+
+        json_data = json.loads(zf.read(f"{song_name}/{song_name}.json").decode("utf-8"))
+        assert json_data["audioFile"] == f"{song_name}.mp3"
+        assert zf.read(f"{song_name}/{song_name}.mp3") == fake_mp3_bytes
 
 
 def test_disk_export_and_io_error_handling(tmp_path: Path):

@@ -100,6 +100,7 @@ def convert_mp3_to_ogg(
         "-y",               # Overwrite destination if it exists
         "-i", str(src),     # Source file
         "-c:a", "libvorbis",# Vorbis encoder
+        "-q:a", "8",        # High quality VBR (~256 kbps, transparent fidelity without saturation)
         "-ar", "44100",     # 44.1 kHz sample rate to prevent encoder padding drift
         "-vn",              # Strip video / album art
         str(dest),

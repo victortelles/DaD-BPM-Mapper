@@ -6,6 +6,7 @@ packages ready for Dead as Disco.
 
 import json
 import os
+import sys
 from pathlib import Path
 from typing import Optional
 
@@ -100,11 +101,10 @@ def render_sidebar() -> None:
         )
 
     st.sidebar.markdown("---")
-    st.sidebar.subheader("Directorio de Destino")
-    game_dir = get_game_imported_songs_dir()
-    st.sidebar.code(str(game_dir), language="bash")
+    st.sidebar.subheader("Ruta en Dead as Disco")
+    st.sidebar.code(r"%localappdata%\Pagoda\Saved\ImportedSongs", language="bat")
     st.sidebar.caption(
-        "Los paquetes de mods pueden descargarse como archivo ZIP o exportarse directamente a este directorio."
+        "Ubicación estándar en Windows donde se instalan los mods del juego."
     )
 
     st.sidebar.markdown("---")
@@ -360,37 +360,69 @@ def main() -> None:
             clean_song_name = sanitize_song_name(song_title_input)
             st.caption(f"Identificador seguro del mod: `{clean_song_name}`")
 
+            source_ext = Path(st.session_state["filename"]).suffix.lower()
+            if not source_ext:
+                source_ext = ".mp3"
+
+            export_format_choice = st.radio(
+                "Formato de Audio para el Mod:",
+                options=[
+                    f"Audio Original ({source_ext}) – Calidad 100% intacta, sin saturación (Recomendado)",
+                    "OGG Vorbis (.ogg) – 44.1 kHz, Alta Fidelidad Q8 (Vía FFmpeg)",
+                ],
+                index=0,
+                help=(
+                    "El formato original conserva bit por bit el archivo subido sin recodificar ni saturar la música. "
+                    "El archivo JSON vinculará automáticamente este audio."
+                ),
+            )
+            use_ogg = "OGG Vorbis" in export_format_choice
+            target_ext = ".ogg" if use_ogg else source_ext
+            target_audio_name = f"{clean_song_name}{target_ext}"
+
             # Show metadata preview
             st.markdown("#### Vista Previa de Metadatos JSON")
-            metadata = generate_metadata(clean_song_name, st.session_state["bpm_sections"])
+            metadata = generate_metadata(
+                clean_song_name,
+                st.session_state["bpm_sections"],
+                audio_filename=target_audio_name,
+            )
             st.code(metadata.to_json(indent=2), language="json")
+
+            is_local_windows = sys.platform == "win32" and get_game_imported_songs_dir().parent.exists()
 
             col_exp1, col_exp2 = st.columns(2)
 
             with col_exp1:
                 st.markdown("#### Descargar Paquete ZIP del Mod")
                 if st.button("Generar ZIP del Mod", icon=":material/folder_zip:", key="btn_gen_zip", type="primary", use_container_width=True):
-                    with st.spinner("Transcodificando a OGG (44.1 kHz) y ensamblando paquete ZIP..."):
+                    spinner_msg = (
+                        "Transcodificando a OGG (44.1 kHz, Q8) y ensamblando ZIP..."
+                        if use_ogg
+                        else "Ensamblando paquete ZIP con audio original (sin pérdida)..."
+                    )
+                    with st.spinner(spinner_msg):
                         try:
-                            # Transcode audio to 44.1 kHz OGG
-                            ext = Path(st.session_state["filename"]).suffix.lower()
-                            ogg_path = convert_audio_bytes_to_ogg(
-                                st.session_state["audio_bytes"],
-                                source_format=ext,
-                            )
-                            with open(ogg_path, "rb") as f:
-                                ogg_bytes = f.read()
+                            if use_ogg:
+                                ext = Path(st.session_state["filename"]).suffix.lower()
+                                ogg_path = convert_audio_bytes_to_ogg(
+                                    st.session_state["audio_bytes"],
+                                    source_format=ext,
+                                )
+                                with open(ogg_path, "rb") as f:
+                                    final_audio = f.read()
+                                try:
+                                    ogg_path.unlink()
+                                except OSError:
+                                    pass
+                            else:
+                                final_audio = st.session_state["audio_bytes"]
 
-                            try:
-                                ogg_path.unlink()
-                            except OSError:
-                                pass
-
-                            st.session_state["ogg_bytes"] = ogg_bytes
                             export_res = build_mod_zip(
                                 clean_song_name,
                                 st.session_state["bpm_sections"],
-                                ogg_bytes,
+                                final_audio,
+                                audio_filename=target_audio_name,
                             )
                             st.session_state["export_result"] = export_res
                             st.session_state["last_exported_song"] = clean_song_name
@@ -417,41 +449,60 @@ def main() -> None:
                     )
 
             with col_exp2:
-                st.markdown("#### Exportar Directamente al Directorio del Juego")
-                target_game_dir = get_game_imported_songs_dir()
-                st.caption(f"Ruta de destino: `{target_game_dir / clean_song_name}`")
+                if is_local_windows:
+                    st.markdown("#### Exportar Directamente en esta PC")
+                    target_game_dir = get_game_imported_songs_dir()
+                    st.caption(f"Ruta de destino: `{target_game_dir / clean_song_name}`")
 
-                if st.button("Exportar Directamente a ImportedSongs", icon=":material/send_to_mobile:", key="btn_direct_export", use_container_width=True):
-                    with st.spinner("Transcodificando y copiando archivos directamente a la carpeta del juego..."):
-                        try:
-                            ext = Path(st.session_state["filename"]).suffix.lower()
-                            ogg_path = convert_audio_bytes_to_ogg(
-                                st.session_state["audio_bytes"],
-                                source_format=ext,
-                            )
-                            with open(ogg_path, "rb") as f:
-                                ogg_bytes = f.read()
-
+                    if st.button("Exportar a ImportedSongs y Abrir Carpeta", icon=":material/folder_open:", key="btn_direct_export", use_container_width=True):
+                        with st.spinner("Guardando archivos y abriendo el Explorador de Windows..."):
                             try:
-                                ogg_path.unlink()
-                            except OSError:
-                                pass
+                                if use_ogg:
+                                    ext = Path(st.session_state["filename"]).suffix.lower()
+                                    ogg_path = convert_audio_bytes_to_ogg(
+                                        st.session_state["audio_bytes"],
+                                        source_format=ext,
+                                    )
+                                    with open(ogg_path, "rb") as f:
+                                        final_audio = f.read()
+                                    try:
+                                        ogg_path.unlink()
+                                    except OSError:
+                                        pass
+                                else:
+                                    final_audio = st.session_state["audio_bytes"]
 
-                            out_path = export_to_directory(
-                                clean_song_name,
-                                st.session_state["bpm_sections"],
-                                ogg_bytes,
-                            )
-                            st.success(f"¡Mod exportado exitosamente a:\n`{out_path}`!")
+                                out_path = export_to_directory(
+                                    clean_song_name,
+                                    st.session_state["bpm_sections"],
+                                    final_audio,
+                                    audio_filename=target_audio_name,
+                                )
+                                st.success(f"¡Mod exportado exitosamente a:\n`{out_path}`!")
+                                try:
+                                    import subprocess
+                                    subprocess.Popen(["explorer", str(out_path)])
+                                except Exception:
+                                    pass
 
-                        except DependencyError as e:
-                            st.error(f"Error de Dependencia: {e}")
-                        except TranscodingError as e:
-                            st.error(f"Error de Transcodificación: {e}")
-                        except ExportIOError as e:
-                            st.error(f"Error de E/S de Exportación: {e}")
-                        except Exception as e:
-                            st.error(f"Fallo al exportar: {e}")
+                            except DependencyError as e:
+                                st.error(f"Error de Dependencia: {e}")
+                            except TranscodingError as e:
+                                st.error(f"Error de Transcodificación: {e}")
+                            except ExportIOError as e:
+                                st.error(f"Error de E/S de Exportación: {e}")
+                            except Exception as e:
+                                st.error(f"Fallo al exportar: {e}")
+                else:
+                    st.markdown("#### Cómo Instalar en Dead as Disco")
+                    st.info(
+                        "**Para jugar este mod en tu PC:**\n\n"
+                        "1. Haz clic en **Descargar ZIP** en la columna izquierda.\n\n"
+                        "2. Presiona `Win + R` en tu teclado y pega la siguiente ruta:\n"
+                        "   `%localappdata%\\Pagoda\\Saved\\ImportedSongs`\n\n"
+                        "3. Extrae la carpeta descargada dentro de esa ubicación y ¡listo!",
+                        icon=":material/info:",
+                    )
 
 
 

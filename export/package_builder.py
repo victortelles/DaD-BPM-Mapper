@@ -77,14 +77,16 @@ def build_mod_zip(
     song_name: str,
     bpm_sections: List[BPMSection],
     ogg_audio: Union[bytes, Path, str],
+    audio_filename: Optional[str] = None,
     include_subfolder: bool = True,
 ) -> ExportResult:
-    """Build a downloadable ZIP mod package containing the .ogg audio and BeatWarping .json.
+    """Build a downloadable ZIP mod package containing the audio and BeatWarping .json.
     
     Args:
         song_name: Song title.
         bpm_sections: Validated BPM sections.
-        ogg_audio: Transcoded OGG audio as raw bytes or file path.
+        ogg_audio: Audio as raw bytes or file path (.ogg or .mp3).
+        audio_filename: Optional explicit filename (e.g. 'Song.mp3'). Defaults to '{clean_name}.ogg'.
         include_subfolder: Whether files should be bundled inside a directory named after the song.
         
     Returns:
@@ -94,7 +96,8 @@ def build_mod_zip(
         ExportIOError: If reading audio bytes or constructing the ZIP fails.
     """
     clean_name = sanitize_song_name(song_name)
-    metadata = generate_metadata(clean_name, bpm_sections, f"{clean_name}.ogg")
+    target_audio_name = audio_filename or f"{clean_name}.ogg"
+    metadata = generate_metadata(clean_name, bpm_sections, target_audio_name)
     json_bytes = metadata.to_json(indent=2).encode("utf-8")
 
     # Read audio bytes
@@ -102,27 +105,23 @@ def build_mod_zip(
         if isinstance(ogg_audio, (Path, str)):
             audio_path = Path(ogg_audio)
             if not audio_path.exists():
-                raise FileNotFoundError(f"OGG audio file not found: {audio_path}")
+                raise FileNotFoundError(f"Audio file not found: {audio_path}")
             with open(audio_path, "rb") as f:
                 audio_bytes = f.read()
         elif isinstance(ogg_audio, (bytes, bytearray)):
             audio_bytes = bytes(ogg_audio)
         else:
-            raise TypeError(f"Unsupported ogg_audio type: {type(ogg_audio)}")
+            raise TypeError(f"Unsupported audio data type: {type(ogg_audio)}")
     except Exception as e:
-        raise ExportIOError(f"Failed to read OGG audio data: {e}") from e
+        raise ExportIOError(f"Failed to read audio data: {e}") from e
 
-    # Build ZIP archive in memory
+    # Build ZIP archive in memory (clean, single-instance entries without duplicates)
     try:
         zip_buffer = io.BytesIO()
         with zipfile.ZipFile(zip_buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
             prefix = f"{clean_name}/" if include_subfolder else ""
             zf.writestr(f"{prefix}{clean_name}.json", json_bytes)
-            zf.writestr(f"{prefix}{clean_name}.ogg", audio_bytes)
-            # Also write to root if subfolder is enabled, ensuring dual compatibility
-            if include_subfolder:
-                zf.writestr(f"{clean_name}.json", json_bytes)
-                zf.writestr(f"{clean_name}.ogg", audio_bytes)
+            zf.writestr(f"{prefix}{target_audio_name}", audio_bytes)
 
         zip_data = zip_buffer.getvalue()
     except Exception as e:
@@ -139,6 +138,7 @@ def export_to_directory(
     song_name: str,
     bpm_sections: List[BPMSection],
     ogg_audio: Union[bytes, Path, str],
+    audio_filename: Optional[str] = None,
     target_dir: Optional[Union[str, Path]] = None,
 ) -> Path:
     """Export mod package files directly into a filesystem directory.
@@ -148,7 +148,8 @@ def export_to_directory(
     Args:
         song_name: Song title.
         bpm_sections: Validated BPM sections.
-        ogg_audio: Transcoded OGG audio as bytes or file path.
+        ogg_audio: Audio data as bytes or file path.
+        audio_filename: Optional explicit audio filename (defaults to '{clean_name}.ogg').
         target_dir: Destination directory. Defaults to standard game folder.
         
     Returns:
@@ -158,7 +159,8 @@ def export_to_directory(
         ExportIOError: If writing to destination directory fails.
     """
     clean_name = sanitize_song_name(song_name)
-    metadata = generate_metadata(clean_name, bpm_sections, f"{clean_name}.ogg")
+    target_audio_name = audio_filename or f"{clean_name}.ogg"
+    metadata = generate_metadata(clean_name, bpm_sections, target_audio_name)
     json_content = metadata.to_json(indent=2)
 
     dest_dir = Path(target_dir) if target_dir is not None else get_game_imported_songs_dir() / clean_name
@@ -169,7 +171,7 @@ def export_to_directory(
         raise ExportIOError(f"Cannot create destination directory '{dest_dir}': {e}") from e
 
     json_file = dest_dir / f"{clean_name}.json"
-    ogg_file = dest_dir / f"{clean_name}.ogg"
+    audio_file = dest_dir / target_audio_name
 
     try:
         with open(json_file, "w", encoding="utf-8") as f:
@@ -180,14 +182,14 @@ def export_to_directory(
     try:
         if isinstance(ogg_audio, (Path, str)):
             src_audio = Path(ogg_audio)
-            with open(src_audio, "rb") as sf, open(ogg_file, "wb") as df:
+            with open(src_audio, "rb") as sf, open(audio_file, "wb") as df:
                 df.write(sf.read())
         elif isinstance(ogg_audio, (bytes, bytearray)):
-            with open(ogg_file, "wb") as f:
+            with open(audio_file, "wb") as f:
                 f.write(bytes(ogg_audio))
         else:
-            raise TypeError(f"Unsupported ogg_audio type: {type(ogg_audio)}")
+            raise TypeError(f"Unsupported audio data type: {type(ogg_audio)}")
     except Exception as e:
-        raise ExportIOError(f"Failed to write audio file '{ogg_file}': {e}") from e
+        raise ExportIOError(f"Failed to write audio file '{audio_file}': {e}") from e
 
     return dest_dir
