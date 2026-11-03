@@ -120,7 +120,7 @@ def render_step_upload() -> None:
     """Render Step 1 of the Wizard: guided upload box, automatic DSP analysis, and direct flow to Step 2."""
     render_micro_card(
         "Paso 1 de 3 — Sube tu archivo de música",
-        "Tu archivo original nunca se modifica. Todo se procesa de forma segura en memoria.",
+        "",
         "MP3 · WAV · OGG · FLAC",
     )
 

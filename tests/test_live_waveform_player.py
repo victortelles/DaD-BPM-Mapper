@@ -63,14 +63,14 @@ def test_dual_theme_palettes_and_css_tokens(monkeypatch):
     apply_studio_theme("dark")
     apply_studio_theme("light")
     render_step_indicator(current_step=2)
-    render_micro_card("Paso 2: Sincronizar Ritmo", "Ajusta banderas en los picos.", badge="128 BPM")
+    render_micro_card("Paso 2: Escuchar y verificar", "Ajusta banderas en los picos.", badge="128 BPM")
 
     assert len(rendered_markdown) == 4
     assert "rgba(2, 6, 23, 0.88)" in rendered_markdown[0]
     assert "rgba(248, 250, 252, 0.88)" in rendered_markdown[1]
-    assert "1. Subir Audio" in rendered_markdown[2]
-    assert "2. Sincronizar Ritmo" in rendered_markdown[2]
-    assert "3. Descargar Mod" in rendered_markdown[2]
+    assert "1. Subir canción" in rendered_markdown[2]
+    assert "2. Escuchar y verificar" in rendered_markdown[2]
+    assert "3. Descargar mod" in rendered_markdown[2]
     assert "128 BPM" in rendered_markdown[3]
 
 

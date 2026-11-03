@@ -4,7 +4,7 @@
 
   <img src="Logo.PNG" alt="Dead as Disco – BPM & BeatSync Studio v2" width="320"/>
   <h1>Dead as Disco — BPM & BeatSync Studio (v2)</h1>
-  <p><b>Estudio web interactivo para sincronización rítmica de precisión (BeatWarping) y empaquetado nativo de canciones personalizadas</b></p>
+  <p><b>Aplicacion web hecha con framework streamlit para la sincronizacion ritmica de precision para el videojuego de Dead as Disco </b></p>
 </div>
 
 ---
@@ -16,7 +16,7 @@
 ### ¿Por qué existe esta herramienta?
 Cuando importas canciones con cambios de ritmo, introducciones asimétricas o percusiones síncopas directamente en **Dead as Disco**, el detector interno del juego suele asumir un BPM estático o desfasar el primer golpe (`beatOffset`), provocando que los ataques y esquives pierdan sincronía con la música.
 
-**Dead as Disco — BPM & BeatSync Studio v2** resuelve esta limitación mediante:
+**Dead as Disco — BPM & BeatSync** resuelve esta limitación mediante:
 1. **Análisis DSP No Destructivo (Librosa)**: Detecta el `tempo` raíz, el `beatOffset` exacto en milisegundos y cambios dinámicos de velocidad (`customTempoSections`).
 2. **Alineación Magnética a Picos Acústicos**: Permite anclar banderas de tempo directamente a los transitorios reales (golpes de bombo/caja) y recalcular BPMs automáticamente poniendo `BPM = 0`.
 3. **Empaquetado Nativo sin Desfase**: Transcodifica una copia limpia a `audio.ogg` (**44,100 Hz**) eliminando el *encoder padding* del MP3 y preservando intacto el hash MD5 del archivo original (`originalAudioFileHash`).
@@ -25,15 +25,15 @@ Cuando importas canciones con cambios de ritmo, introducciones asimétricas o pe
 
 ## Ruta Rápida (Quick Path)
 
-1. **Subir Pista (Paso 1)**: Carga tu archivo de audio validado por el firewall binario de cabeceras mágicas.
-2. **Sincronizar Ritmo (Paso 2)**: Verifica el golpe inicial (`beatOffset`) y las secciones de tempo en el reproductor en vivo con metrónomo y cuadrícula de beats.
-3. **Exportar Mod (Paso 3)**: Descarga el archivo `<SongName>.zip` (o expórtalo directamente) a `%localappdata%\Pagoda\Saved\ImportedSongs\`.
+1. **Subir canción (Paso 1)**: Carga tu archivo de audio validado por el firewall binario de cabeceras mágicas.
+2. **Escuchar y verificar (Paso 2)**: Verifica el golpe inicial (`beatOffset`) y las secciones de tempo en el reproductor en vivo con metrónomo y cuadrícula de beats.
+3. **Descargar mod (Paso 3)**: Descarga el archivo `<SongName>.zip` (o abre la carpeta directamente) en `%localappdata%\Pagoda\Saved\ImportedSongs\`.
 
 ---
 
 ## Guía Visual Paso a Paso
 
-### Paso 1: Subir Audio Validado por Firewall Binario
+### Paso 1: Subir Audio
 Sube tu pista musical (`.mp3`, `.wav`, `.ogg`, `.flac`) y, opcionalmente, un archivo `Meta.json` previo. El motor verifica la firma binaria real (*magic bytes*) antes de decodificar la señal y calcula el hash MD5 original sin alterar tus archivos.
 
 <div align="center">
@@ -95,87 +95,6 @@ Cada paquete exportado genera la estructura exacta requerida por Unreal Engine /
 | 15 | `analyseResult` | `dict` | Diagnóstico (`bAnalyseSuccessful`, `bFoundTempo`, `bFoundOffset`, `tempo`, `beatOffset`, `fitQuality`, `errorCode`). |
 | 16 | `beatTracks` | `list` | Pistas de eventos coreográficos (reservado como `[]`). |
 
-### Ejemplo Real de `Meta.json`
-
-```json
-{
-	"version": 1,
-	"uniqueId": 27605225,
-	"songName": "Neon Rave Act I",
-	"performedBy": [],
-	"writtenBy": [],
-	"seed": 2196372576,
-	"tempo": 95,
-	"customTempoSections": [
-		{
-			"tempo": 190,
-			"startAbsoluteTime": 20.248838
-		}
-	],
-	"beatOffset": 38,
-	"startSongOffset": 0.85,
-	"endSongOffset": 210.0,
-	"uEAssetName": "Neon Rave Act I",
-	"originalAudioFileHash": "84e43bfb431159bcf29ab6ab906a4147",
-	"originalAudioFilePath": "D:/Music/Neon Rave Act I.mp3",
-	"analyseResult": {
-		"bAnalyseSuccessful": true,
-		"bFoundTempo": true,
-		"bFoundOffset": true,
-		"tempo": 95,
-		"beatOffset": 38,
-		"fitQuality": 0.920423,
-		"errorCode": {
-			"code": 0,
-			"messageKey": "None",
-			"message": ""
-		}
-	},
-	"beatTracks": []
-}
-```
-
----
-
-## Arquitectura Modular S.O.L.I.D (`< 400` Líneas por Archivo)
-
-El repositorio aplica separación estricta de responsabilidades (**S.O.L.I.D**) y un límite arquitectónico automatizado donde **ningún archivo supera las 400 líneas de código** (`tests/test_architecture_limits.py`). Las capas de dominio (`models/`, `audio_analysis/`, `export/`) son 100% independientes de Streamlit.
-
-```text
-├── app.py                          # Orquestador ligero de navegación y estado (< 200 LOC)
-├── models/
-│   └── song_metadata.py            # Entidades de 16 campos Meta.json y puente legacy BPMSection
-├── audio_analysis/
-│   ├── security.py                 # Firewall binario de cabeceras mágicas + hash MD5
-│   ├── dsp_peaks.py                # Carga DSP, envolvente, snapping a transitorios y cálculo Zero-BPM
-│   ├── beat_detection.py           # Detección de tempo, beatOffset (ms) y fitQuality
-│   ├── bpm_sections.py             # CRUD de secciones y fórmulas continuas de BeatWarping
-│   ├── converter.py                # Transcodificador no destructivo a OGG 44.1 kHz (FFmpeg/SoundFile)
-│   └── exceptions.py               # Jerarquía de excepciones de dominio y seguridad
-├── export/
-│   ├── package_builder.py          # Empaquetador ZIP (<SongName>/Meta.json + audio.ogg) y exportador local
-│   └── exceptions.py               # Errores de E/S de exportación
-├── ui/
-│   ├── theme.py                    # Sistema de diseño Sky/Slate (:root CSS, Inter + JetBrains Mono)
-│   ├── step_upload.py              # Paso 1 del Wizard: carga segura e importación de Meta.json
-│   ├── step_sync.py                # Paso 2 del Wizard: sincronización en vivo y auto-calibración
-│   ├── step_export.py              # Paso 3 del Wizard: vista previa de Meta.json y descarga ZIP
-│   ├── live_waveform_player.py     # Puente del reproductor interactivo en vivo
-│   ├── player_assets.py            # Plantilla HTML5 Canvas + WebAudio Metronome + Beat Grid
-│   ├── flag_editor.py              # Editor interactivo de offsets y customTempoSections
-│   ├── waveform_view.py            # Gráfica estática de respaldo en Matplotlib
-│   ├── guide_view.py               # Vista integrada "Cómo Usarlo" con capturas anotadas
-│   └── legal_view.py               # Vista de Políticas, Privacidad y Aviso Legal (DMCA)
-└── tests/                          # Suite de pruebas unitarias, límite <400 LOC y flujo E2E
-```
-
-| Capa | Paquete | Responsabilidad Clave | Dependencia UI |
-| :--- | :--- | :--- | :---: |
-| **Dominio** | `models/` | Contratos tipados `SongMetadata`, `CustomTempoSection`, `AnalyseResult` y migración legacy. | Ninguna |
-| **Seguridad y DSP** | `audio_analysis/` | Validación de magic bytes, MD5 intacto, detección de picos/BPM y conversión OGG 44.1 kHz. | Ninguna |
-| **Empaquetado** | `export/` | Serialización `Meta.json` (16 campos) y construcción de paquetes `.zip` para Pagoda. | Ninguna |
-| **Presentación** | `ui/` + `app.py` | Wizard minimalista de 3 pasos, tema Sky/Slate, Canvas 60 FPS y vistas de ayuda/legal. | Streamlit |
-
 ---
 
 ## Instalación, Ejecución Local y Pruebas
@@ -204,15 +123,11 @@ pytest -q
 pytest tests/test_architecture_limits.py tests/test_e2e_workflow.py -v
 ```
 
-### Lista de Verificación Rápida (Checklist)
-- [x] Todos los archivos del repositorio cumplen estrictamente `< 400` líneas.
-- [x] El firewall rechaza ejecutables (`MZ`) o scripts (`<script>`) renombrados como audio.
-- [x] El archivo `.zip` exportado contiene `<SongName>/audio.ogg` (44.1 kHz) y `<SongName>/Meta.json` (16 campos).
-
 ---
 
 ## Políticas de Seguridad, Privacidad y Aviso Legal (DMCA)
 
+- **Privacidad de Datos (Cero Recopilación)**: La aplicación no toma, recopila ni guarda datos de los usuarios. Lo único que utiliza es el archivo de audio que proporcionas para procesar la sincronización rítmica en la memoria RAM local, sin almacenarlo en ninguna base de datos ni servidor externo.
 - **Firewall Binario de Subida**: Solo se aceptan extensiones `.mp3`, `.wav`, `.ogg` y `.flac` (entre `64 B` y `100 MB`) cuyas cabeceras binarias coincidan con firmas reales (`ID3`/MPEG sync, `RIFF`/`WAVE`, `OggS`, `fLaC`). Cualquier binario ejecutable o script camuflado es bloqueado antes de tocar el decodificador.
 - **Procesamiento 100% Efímero y No Destructivo**: Los archivos de audio se procesan en memoria RAM o directorios temporales aislados. El archivo original jamás es modificado y su hash MD5 (`originalAudioFileHash`) se preserva íntegro.
-- **Propiedad Intelectual y DMCA**: Este proyecto es una utilidad comunitaria de *modding* sin fines comerciales ni afiliación oficial con los creadores de **Dead as Disco** (*Pagoda*). El usuario es el único responsable de poseer los derechos o licencias de las pistas musicales que procese localmente para uso personal.
+- **Propiedad Intelectual y DMCA**: Este proyecto es una utilidad comunitaria de *modding* sin fines comerciales ni afiliación oficial con los creadores de **Dead as Disco**. El usuario es el único responsable de poseer los derechos o licencias de las pistas musicales que procese localmente para uso personal.
