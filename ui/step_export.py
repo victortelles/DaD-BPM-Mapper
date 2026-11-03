@@ -212,6 +212,27 @@ def render_step_export() -> None:
             "dentro de **`ImportedSongs`**. ¡Listo para jugar!"
         )
 
+        with st.expander(
+            "En caso de errores: ¿El juego muestra \"No se encontró la música\"?",
+            expanded=False,
+            icon=":material/help:",
+        ):
+            st.markdown(
+                "**No te preocupes, es normal en Dead as Disco al importar mods:**\n\n"
+                "1. **¿Por qué ocurre?** Unreal Engine guarda la ruta absoluta del audio (`originalAudioFilePath`) en `Meta.json`. "
+                "Si la ruta de tu equipo difiere de la del creador, el juego pedirá ubicar el archivo.\n"
+                "2. **Solución en 2 clics:** Cuando el juego muestre el aviso, pulsa en explorar archivos y elige "
+                f"el archivo **`audio.ogg`** dentro de la carpeta **`{safe_folder}`**.\n"
+                "3. El juego vinculará tu ruta local automáticamente y ya no te lo volverá a pedir."
+            )
+            if st.button(
+                "Ver guía completa de resolución de problemas",
+                key="btn_export_goto_troubleshoot",
+                icon=":material/help:",
+            ):
+                st.session_state["active_nav"] = "troubleshooting"
+                st.rerun()
+
     with st.expander(
         "Opcional: Ver código de Meta.json generado (16 campos nativos)",
         expanded=False,

@@ -144,6 +144,24 @@ def render_guide_view() -> None:
                 else:
                     st.caption(f"Vista previa de interfaz (`{rel_img_path}`)")
 
+    with st.expander(
+        "¿Problemas al cargar en el juego? Solución rápida a \"No se encontró la música\"",
+        expanded=False,
+        icon=":material/help:",
+    ):
+        st.markdown(
+            "Si al iniciar una partida ves el aviso **\"No se encontró la música\"**, pulsa en explorar archivos "
+            "dentro del juego y selecciona el archivo **`audio.ogg`** dentro de la carpeta del mod. "
+            "Dead as Disco re-enlazará la ruta en tu equipo y quedará solucionado para siempre."
+        )
+        if st.button(
+            "Abrir guía completa: En caso de errores",
+            key="btn_guide_goto_troubleshoot",
+            icon=":material/help:",
+        ):
+            st.session_state["active_nav"] = "troubleshooting"
+            st.rerun()
+
     st.markdown("#### Ruta Oficial de Instalación en Windows (`Win + R`)")
     col_path, col_tree = st.columns([1.2, 1.0], gap="medium")
     with col_path:
