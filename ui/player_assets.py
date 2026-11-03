@@ -40,7 +40,7 @@ def build_player_css(theme_mode: str = "dark") -> str:
   #waveCanvas {{ display: block; height: 210px; }}
   .daw-hint-bar {{ display: flex; justify-content: space-between; align-items: center; margin-top: 6px; padding: 4px 10px; background: {bg}; border: 1px solid {border}; border-radius: 6px; font-size: 11px; color: {muted_fg}; font-weight: 500; gap: 8px; flex-wrap: wrap; }}
   .hint-item {{ display: inline-flex; align-items: center; gap: 4px; }}
-  .controls-row {{ display: flex; justify-content: space-between; align-items: center; margin-top: 8px; gap: 10px; flex-wrap: nowrap; }}
+  .controls-row {{ display: flex; justify-content: space-between; align-items: center; margin-top: 8px; gap: 8px; flex-wrap: wrap; }}
   button {{ background: {bg}; color: {fg}; border: 1px solid {border}; border-radius: 8px; padding: 5px 10px; font-size: 12px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; transition: all 0.12s ease; }}
   button:hover {{ background: {hover_bg}; border-color: {primary}; color: {hover_fg}; }}
   .btn-primary {{ background: {primary}; border-color: {primary}; color: {primary_fg}; }} .btn-primary:hover {{ background: {accent}; border-color: {accent}; color: #ffffff; }}
@@ -51,7 +51,7 @@ def build_player_css(theme_mode: str = "dark") -> str:
   input[type="range"] {{ accent-color: {primary}; cursor: pointer; width: 88px; }}
   .zoom-preset {{ padding: 3px 7px; font-size: 11px; border-radius: 6px; }}
   .chk-label {{ display: flex; align-items: center; gap: 4px; font-size: 11px; color: {fg}; font-weight: 500; cursor: pointer; }}
-  .vol-controls {{ display: flex; align-items: center; gap: 5px; background: {bg}; border: 1px solid {border}; border-radius: 8px; padding: 3px 8px; }}
+  .vol-controls {{ display: flex; align-items: center; gap: 5px; background: {bg}; border: 1px solid {border}; border-radius: 8px; padding: 3px 8px; flex-shrink: 0; }}
   .vol-btn {{ background: transparent; border: none; padding: 0; color: {fg}; cursor: pointer; display: inline-flex; align-items: center; }} .vol-btn:hover {{ background: transparent; color: {primary}; }}
   .vol-slider {{ width: 62px !important; height: 4px; accent-color: {primary}; cursor: pointer; }}
   .vol-val {{ font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700; color: {muted_fg}; min-width: 26px; }}
@@ -69,7 +69,7 @@ def build_player_js() -> str:
 
   const audio = document.getElementById("audioElement"), canvas = document.getElementById("waveCanvas"), ctx = canvas.getContext("2d"), wrapper = document.getElementById("waveWrapper");
   const btnPlayPause = document.getElementById("btnPlayPause"), playLabel = document.getElementById("playLabel"), playIcon = document.getElementById("playIcon");
-  const btnStop = document.getElementById("btnStop"), btnSkipBack = document.getElementById("btnSkipBack"), btnSkipFwd = document.getElementById("btnSkipFwd"), btnSpeed = document.getElementById("btnSpeed");
+  const btnStop = document.getElementById("btnStop");
   const timeCurrent = document.getElementById("timeCurrent"), timeTotal = document.getElementById("timeTotal");
   const btnCopyTime = document.getElementById("btnCopyTime"), btnCopyLabel = document.getElementById("btnCopyLabel"), copyBadge = document.getElementById("copyBadge");
   const btnPrevFlag = document.getElementById("btnPrevFlag"), btnNextFlag = document.getElementById("btnNextFlag");
@@ -79,8 +79,8 @@ def build_player_js() -> str:
   const metroLight = document.getElementById("metroLight"), metroBpm = document.getElementById("metroBpm"), btnMetroAudio = document.getElementById("btnMetroAudio"), metroLabel = document.getElementById("metroLabel");
 
   let zoomLevel = 1.0, isScrubbing = false, isPanning = false, panStartX = 0, panStartScroll = 0;
-  let hoverTime = null, audioCtx = null, metroAudioEnabled = false, lastBeatIndex = -1, speedIdx = 2, flagHitBoxes = [];
-  const flagColors = ["#38bdf8", "#f59e0b", "#10b981", "#a855f7", "#f43f5e"], speeds = [0.5, 0.75, 1.0, 1.25, 1.5];
+  let hoverTime = null, audioCtx = null, metroAudioEnabled = false, lastBeatIndex = -1, flagHitBoxes = [];
+  const flagColors = ["#38bdf8", "#f59e0b", "#10b981", "#a855f7", "#f43f5e"];
 
   function initAudioContext() {
     if (!audioCtx) { const Ctx = window.AudioContext || window.webkitAudioContext; if (Ctx) audioCtx = new Ctx(); }
@@ -300,11 +300,6 @@ def build_player_js() -> str:
     audio.pause(); audio.currentTime = 0; playLabel.innerText = "Reproducir";
     playIcon.innerHTML = '<path d="M8 5v14l11-7z"/>'; btnPlayPause.classList.replace("btn-danger", "btn-primary"); jumpToFlagTime(0);
   });
-  btnSkipBack.addEventListener("click", () => jumpToFlagTime(Math.max(0, audio.currentTime - 5.0)));
-  btnSkipFwd.addEventListener("click", () => jumpToFlagTime(Math.min(duration, audio.currentTime + 5.0)));
-  btnSpeed.addEventListener("click", () => {
-    speedIdx = (speedIdx + 1) % speeds.length; audio.playbackRate = speeds[speedIdx]; btnSpeed.innerText = speeds[speedIdx].toFixed(2) + "x";
-  });
   zoomSlider.addEventListener("input", (e) => setZoom(parseFloat(e.target.value)));
   btnZoomFit.addEventListener("click", () => setZoom(1)); btnZoom5x.addEventListener("click", () => setZoom(5)); btnZoom15x.addEventListener("click", () => setZoom(15));
   btnCopyTime.addEventListener("click", () => {
@@ -373,8 +368,9 @@ def build_waveform_player_html(
   <div class="controls-row">
     <div class="btn-group">
       <button id="btnPlayPause" class="btn-primary"><svg class="icon-svg" id="playIcon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg><span id="playLabel">Reproducir</span></button>
-      <button id="btnStop" title="Reiniciar"><svg class="icon-svg" viewBox="0 0 24 24"><path d="M6 6h12v12H6z"/></svg><span>Detener</span></button><button id="btnSkipBack" title="Retroceder 5s">-5s</button><button id="btnSkipFwd" title="Avanzar 5s">+5s</button>
-      <button id="btnSpeed" title="Velocidad">1.0x</button><button id="btnPrevFlag" title="Bandera anterior" class="zoom-preset"><svg class="icon-svg" viewBox="0 0 24 24"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg><span>Bandera</span></button><button id="btnNextFlag" title="Bandera siguiente" class="zoom-preset"><span>Bandera</span><svg class="icon-svg" viewBox="0 0 24 24"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg></button>
+      <button id="btnStop" title="Reiniciar"><svg class="icon-svg" viewBox="0 0 24 24"><path d="M6 6h12v12H6z"/></svg><span>Detener</span></button>
+      <button id="btnPrevFlag" title="Bandera anterior" class="zoom-preset"><svg class="icon-svg" viewBox="0 0 24 24"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg><span>Bandera</span></button>
+      <button id="btnNextFlag" title="Bandera siguiente" class="zoom-preset"><span>Bandera</span><svg class="icon-svg" viewBox="0 0 24 24"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg></button>
     </div>
     <div class="zoom-controls">
       <span class="zoom-label">Zoom:</span><input type="range" id="zoomSlider" min="1" max="16" value="1" step="0.5"><span id="zoomValue" style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;min-width:28px;">1x</span>
