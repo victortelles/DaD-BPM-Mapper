@@ -14,6 +14,7 @@ from ui.step_upload import render_step_upload
 from ui.theme import apply_studio_theme, render_step_indicator
 
 LOGO_PATH = Path(__file__).resolve().parent / "Logo.PNG"
+BANNER_PATH = Path(__file__).resolve().parent / "assets" / "Banner.png"
 
 SESSION_DEFAULTS: Dict[str, Any] = {
     "theme_mode": "dark",
@@ -126,24 +127,31 @@ def _render_sidebar() -> None:
 
 
 def _render_header() -> None:
-    """Render the studio brand header and active song status badge."""
-    col_title, col_actions = st.columns([4.2, 1.8], gap="medium")
-    with col_title:
-        st.title("Dead as Disco · BPM Mapper")
-        st.caption("Asistente guiado en 3 pasos para crear mods musicales sincronizados (`audio.ogg` + `Meta.json`)")
-    with col_actions:
-        sections = st.session_state.get("bpm_sections") or []
-        if st.session_state.get("audio_bytes") is not None and sections:
-            base_bpm = float(sections[0].bpm)
-            fit_pct = float(st.session_state.get("fit_quality", 0.92)) * 100.0
-            st.markdown(
-                f'<div style="text-align:right;margin-top:0.35rem;">'
-                f'<span class="dad-badge">'
-                f'<span class="material-symbols-rounded" style="font-size:0.95rem;vertical-align:middle;margin-right:4px;">graphic_eq</span>'
-                f"{base_bpm:.1f} BPM · {fit_pct:.0f}% Precisión"
-                f"</span></div>",
-                unsafe_allow_html=True,
-            )
+    """Render the studio brand banner header and active song status badge."""
+    if BANNER_PATH.exists():
+        st.image(str(BANNER_PATH), width="stretch")
+    else:
+        col_title, col_actions = st.columns([4.2, 1.8], gap="medium")
+        with col_title:
+            st.title("Dead as Disco · BPM Mapper")
+            st.caption("Asistente guiado en 3 pasos para crear mods musicales sincronizados (`audio.ogg` + `Meta.json`)")
+
+    sections = st.session_state.get("bpm_sections") or []
+    if st.session_state.get("audio_bytes") is not None and sections:
+        base_bpm = float(sections[0].bpm)
+        fit_pct = float(st.session_state.get("fit_quality", 0.92)) * 100.0
+        clean_title = sanitize_song_title(st.session_state.get("song_name") or "Canción cargada")
+        st.markdown(
+            f'<div style="display:flex;justify-content:space-between;align-items:center;margin:0.4rem 0 0.8rem 0;padding:0.4rem 0.8rem;background:var(--card-bg,#0f172a);border:1px solid var(--border-color,#1e293b);border-radius:0.5rem;">'
+            f'<span style="font-size:0.88rem;color:var(--text-color,#f8fafc);font-weight:600;">'
+            f'<span class="material-symbols-rounded" style="font-size:1rem;vertical-align:middle;margin-right:6px;color:#38bdf8;">audiotrack</span>{clean_title}'
+            f"</span>"
+            f'<span class="dad-badge">'
+            f'<span class="material-symbols-rounded" style="font-size:0.95rem;vertical-align:middle;margin-right:4px;">graphic_eq</span>'
+            f"{base_bpm:.1f} BPM · {fit_pct:.0f}% Precisión"
+            f"</span></div>",
+            unsafe_allow_html=True,
+        )
 
 
 def render_header_and_nav() -> None:

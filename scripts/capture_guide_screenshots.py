@@ -1,4 +1,4 @@
-"""Playwright automated screenshot capture and high-contrast Pillow annotation for the v2 Visual Guide."""
+"""Playwright automated screenshot capture and studio-palette banner generator for v2 Visual Guide."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import tempfile
 import time
 import urllib.request
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Any, List, Optional, Tuple
 
 import numpy as np
 import soundfile as sf
@@ -44,7 +44,20 @@ def _create_demo_multitempo_wav(target_dir: Path) -> Path:
     return wav_path
 
 
-def _loc_rect(loc, pad: int = 6) -> Optional[Tuple[int, int, int, int]]:
+def _wait_for_server(url: str, timeout_s: float = 25.0) -> None:
+    """Poll the local Streamlit HTTP server until it responds."""
+    deadline = time.time() + timeout_s
+    while time.time() < deadline:
+        try:
+            with urllib.request.urlopen(url, timeout=2) as resp:
+                if resp.status == 200:
+                    return
+        except Exception:
+            time.sleep(0.4)
+    raise RuntimeError(f"Streamlit server did not start within {timeout_s}s at {url}")
+
+
+def _loc_rect(loc: Any, pad: int = 4) -> Optional[Tuple[int, int, int, int]]:
     """Query a Playwright locator's dynamic bounding box and return (x0, y0, x1, y1) with padding."""
     try:
         box = loc.bounding_box()
@@ -60,89 +73,81 @@ def _loc_rect(loc, pad: int = 6) -> Optional[Tuple[int, int, int, int]]:
     return None
 
 
-def _enclosing_rect(locs: List[Any], pad: int = 6) -> Optional[Tuple[int, int, int, int]]:
-    """Calculate the bounding box enclosing multiple Playwright locators."""
-    boxes = [l.bounding_box() for l in locs if l and l.bounding_box()]
-    if not boxes:
-        return None
-    return (
-        int(min(b["x"] for b in boxes) - pad),
-        int(min(b["y"] for b in boxes) - pad),
-        int(max(b["x"] + b["width"] for b in boxes) + pad),
-        int(max(b["y"] + b["height"] for b in boxes) + pad),
-    )
-
-
-def _wait_for_server(url: str, timeout_s: float = 25.0) -> None:
-    """Poll the local Streamlit HTTP server until it responds."""
-    deadline = time.time() + timeout_s
-    while time.time() < deadline:
-        try:
-            with urllib.request.urlopen(url, timeout=2) as resp:
-                if resp.status == 200:
-                    return
-        except Exception:
-            time.sleep(0.4)
-    raise RuntimeError(f"Streamlit server did not start within {timeout_s}s at {url}")
-
-
-def _annotate_image(
-    img_path: Path,
-    step_badge: str,
-    step_sub: str,
-    callouts: List[Tuple[int, int, str, str, Optional[Tuple[int, int, int, int]]]],
-) -> None:
-    """Draw high-contrast red-bordered callout badges and focus frames on a captured screenshot."""
-    img = Image.open(img_path).convert("RGBA")
+def _annotate_banner(
+    img: Image.Image,
+    step_num: int,
+    step_title: str,
+    targets: List[Tuple[int, int, int, int]],
+) -> Image.Image:
+    """Draw luminous sky-blue focus borders and numbered circular badges on the cropped banner."""
     w, h = img.size
     overlay = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     draw = ImageDraw.Draw(overlay)
 
     try:
-        font_badge = ImageFont.truetype("segoeuib.ttf", 16)
-        font_title = ImageFont.truetype("segoeuib.ttf", 16)
-        font_sub = ImageFont.truetype("segoeuib.ttf", 13)
+        font_badge = ImageFont.truetype("segoeuib.ttf", 15)
+        font_title = ImageFont.truetype("segoeuib.ttf", 15)
         font_num = ImageFont.truetype("segoeuib.ttf", 16)
     except OSError:
         font_badge = ImageFont.load_default()
         font_title = ImageFont.load_default()
-        font_sub = ImageFont.load_default()
         font_num = ImageFont.load_default()
 
-    # Red outer canvas border
-    draw.rectangle((0, 0, w - 1, h - 1), outline=(239, 68, 68, 255), width=5)
+    # Outer frame border (Dark slate #1e293b)
+    draw.rectangle((0, 0, w - 1, h - 1), outline=(30, 41, 59, 255), width=2)
 
-    # Top-left high-contrast step header banner with red border
-    pill_box = (18, 12, 420, 56)
-    draw.rounded_rectangle(pill_box, radius=12, fill=(15, 23, 42, 245), outline=(239, 68, 68, 255), width=3)
-    draw.rounded_rectangle((24, 18, 155, 50), radius=8, fill=(239, 68, 68, 255))
-    draw.text((32, 24), step_badge, fill=(255, 255, 255, 255), font=font_badge)
-    draw.text((168, 24), step_sub, fill=(248, 250, 252, 255), font=font_title)
+    # Top-left header pill: [ PASO X DE 4 ] <Título>
+    draw.rounded_rectangle((16, 14, 430, 52), radius=10, fill=(15, 23, 42, 240), outline=(56, 189, 248, 180), width=1)
+    draw.rounded_rectangle((20, 18, 145, 48), radius=7, fill=(56, 189, 248, 255))
+    draw.text((28, 23), f"PASO {step_num} DE 4", fill=(2, 6, 23, 255), font=font_badge)
+    draw.text((156, 23), step_title, fill=(248, 250, 252, 255), font=font_title)
 
-    for idx, (cx, cy, title, subtitle, target_rect) in enumerate(callouts, start=1):
-        # Draw red highlight focus frame if target_rect is specified
-        if target_rect:
-            tx0, ty0, tx1, ty1 = target_rect
-            draw.rounded_rectangle((tx0, ty0, tx1, ty1), radius=8, outline=(239, 68, 68, 255), width=4, fill=(239, 68, 68, 28))
-            draw.ellipse((tx0 - 14, ty0 - 14, tx0 + 18, ty0 + 18), fill=(239, 68, 68, 255), outline=(255, 255, 255, 255), width=2)
-            draw.text((tx0 - 6, ty0 - 8), str(idx), fill=(255, 255, 255, 255), font=font_num)
+    for idx, (tx0, ty0, tx1, ty1) in enumerate(targets, start=1):
+        # Soft outer glow
+        draw.rounded_rectangle((tx0 - 3, ty0 - 3, tx1 + 3, ty1 + 3), radius=8, outline=(56, 189, 248, 60), width=2)
+        # Crisp primary focus border (#38bdf8)
+        draw.rounded_rectangle((tx0, ty0, tx1, ty1), radius=8, outline=(56, 189, 248, 255), width=3)
 
-        # Draw red-bordered explanation card
-        box_w, box_h = 425, 58
-        bx0, by0 = max(16, min(w - box_w - 16, cx)), max(65, cy)
-        bx1, by1 = bx0 + box_w, by0 + box_h
-        draw.rounded_rectangle((bx0, by0, bx1, by1), radius=10, fill=(15, 23, 42, 245), outline=(239, 68, 68, 255), width=3)
-        draw.ellipse((bx0 + 10, by0 + 12, bx0 + 40, by0 + 42), fill=(239, 68, 68, 255), outline=(255, 255, 255, 255), width=2)
-        draw.text((bx0 + 19, by0 + 17), str(idx), fill=(255, 255, 255, 255), font=font_num)
-        draw.text((bx0 + 48, by0 + 9), title, fill=(255, 255, 255, 255), font=font_title)
-        draw.text((bx0 + 48, by0 + 31), subtitle, fill=(254, 240, 138, 255), font=font_sub)
+        # Numbered circular badge placed at the top-left outer corner (never obscuring contents)
+        bx, by = tx0 - 6, ty0 - 6
+        draw.ellipse((bx - 14, by - 14, bx + 16, by + 16), fill=(56, 189, 248, 255), outline=(255, 255, 255, 255), width=2)
+        draw.text((bx - 5, by - 9), str(idx), fill=(2, 6, 23, 255), font=font_num)
 
-    combined = Image.alpha_composite(img, overlay).convert("RGB")
-    combined.save(img_path, format="PNG", optimize=True)
+    combined = Image.alpha_composite(img.convert("RGBA"), overlay).convert("RGB")
+    return combined
+
+
+def _generate_step4_banner(output_path: Path) -> None:
+    """Generate Step 4 installation banner from the clean screenshot with studio palette highlights."""
+    clean_src = REPO_ROOT / "assets" / "guide" / "step4_clean.png"
+    if not clean_src.exists():
+        # Fallback to brain artifact if present
+        brain_cand = Path(r"C:\Users\TellesVM\.gemini\antigravity-cli\brain\84bbf8ed-adde-4dc8-a225-cf1a13bae46e\step4_install_game_clean_1793667936089.jpg")
+        if brain_cand.exists():
+            clean_src = brain_cand
+        else:
+            return
+
+    img = Image.open(clean_src)
+    # Crop to horizontal banner (1340 x 620)
+    cropped = img.crop((18, 65, 1358, 685))
+
+    # Bounding boxes for the 3 visual steps translated into cropped coordinates:
+    # 1. Win + R dialog
+    # 2. Explorer folder with audio.ogg + Meta.json
+    # 3. Dead as Disco custom song menu
+    targets = [
+        (40, 160, 470, 510),
+        (490, 80, 920, 560),
+        (940, 80, 1320, 590),
+    ]
+
+    annotated = _annotate_banner(cropped, 4, "Instalar en ImportedSongs", targets)
+    annotated.save(output_path, format="PNG", optimize=True)
 
 
 def capture_all_screenshots() -> None:
-    """Launch Streamlit, drive the 3-step Wizard via Playwright, and save annotated PNGs."""
+    """Launch Streamlit, drive the 3-step Wizard via Playwright, and save annotated PNG banners."""
     GUIDE_DIR.mkdir(parents=True, exist_ok=True)
     proc = subprocess.Popen(
         [
@@ -170,99 +175,120 @@ def capture_all_screenshots() -> None:
 
             with sync_playwright() as p:
                 browser = p.chromium.launch(headless=True)
-                context = browser.new_context(viewport={"width": 1440, "height": 1520})
+                context = browser.new_context(viewport={"width": 1440, "height": 1600})
                 page = context.new_page()
                 page.goto(APP_URL, wait_until="networkidle")
                 page.wait_for_timeout(1500)
 
-                # Upload multi-tempo audio in Step 1 (auto-advances to Step 2)
+                # Step 1: Upload multi-tempo audio (advances to Step 2)
                 file_input = page.locator('input[type="file"]').first
                 file_input.set_input_files(str(wav_path))
                 page.wait_for_selector("text=Paso 2 de 3", timeout=30000)
                 page.wait_for_timeout(1500)
 
-                # Navigate back to Step 1 to capture the completed upload + metrics summary state
+                # Return to Step 1 to capture upload box + metrics summary banner
                 page.get_by_role("button", name=re.compile(r"Paso 1: Subir canción", re.I)).first.click()
                 page.wait_for_selector("text=Canción lista", timeout=15000)
                 page.wait_for_timeout(1000)
-                step1_path = GUIDE_DIR / "step1_upload.png"
-                page.screenshot(path=str(step1_path), clip={"x": 0, "y": 0, "width": 1440, "height": 1340})
 
-                loc_theme = page.locator('button:has-text("Modo"), button:has-text("Tema")').first
                 loc_uploader = page.locator('[data-testid="stFileUploader"]').first
                 loc_metrics = page.locator('[data-testid="stMetric"]').all()
-                loc_btn1 = page.get_by_role("button", name=re.compile(r"Ir al Paso 2", re.I)).first
+                loc_btn1 = page.get_by_role("button", name=re.compile(r"Paso 2: Escuchar y verificar|Ir al Paso 2", re.I)).first
 
-                box_theme = _loc_rect(loc_theme, pad=5) or (960, 104, 1230, 144)
-                box_uploader = _loc_rect(loc_uploader, pad=6) or (226, 892, 1214, 990)
-                box_summary = _enclosing_rect(loc_metrics + [loc_btn1], pad=8) or (226, 1092, 1214, 1235)
+                b_up = _loc_rect(loc_uploader, pad=4) or (220, 890, 1220, 990)
+                if loc_metrics:
+                    m_boxes = [m.bounding_box() for m in loc_metrics if m.bounding_box()]
+                    b_met = (
+                        int(min(b["x"] for b in m_boxes) - 6),
+                        int(min(b["y"] for b in m_boxes) - 6),
+                        int(max(b["x"] + b["width"] for b in m_boxes) + 6),
+                        int(max(b["y"] + b["height"] for b in m_boxes) + 6),
+                    )
+                else:
+                    b_met = (220, 1080, 1220, 1200)
+                b_btn1 = _loc_rect(loc_btn1, pad=4) or (220, 1210, 1220, 1255)
 
-                _annotate_image(
-                    step1_path,
-                    "PASO 1 DE 4",
-                    "Subida Segura + Auto-BPM",
-                    [
-                        (510, box_theme[1] - 8, "1. Modo Oscuro / Claro", "Alterna entre el tema oscuro y claro", box_theme),
-                        (230, box_uploader[1] - 68, "2. Subida con Firewall Binario", "Valida magic bytes (.mp3/.wav/.ogg/.flac) y MD5", box_uploader),
-                        (230, box_summary[1] - 68, "3. Resumen y Avance Directo", "Muestra BPM, secciones detectadas y pasa al Paso 2", box_summary),
-                    ],
-                )
+                min_y = min(b_up[1], b_met[1], b_btn1[1]) - 70
+                max_y = max(b_up[3], b_met[3], b_btn1[3]) + 25
+                clip_s1 = {"x": 200, "y": max(0, min_y), "width": 1040, "height": max_y - min_y}
 
-                # Advance to Step 2 and capture the Live Waveform Player + Multi-Tempo Strip + Optional Expander
+                raw_s1 = GUIDE_DIR / "_raw_s1.png"
+                page.screenshot(path=str(raw_s1), clip=clip_s1)
+                img1 = Image.open(raw_s1)
+                targets_s1 = [
+                    (b_up[0] - clip_s1["x"], b_up[1] - clip_s1["y"], b_up[2] - clip_s1["x"], b_up[3] - clip_s1["y"]),
+                    (b_met[0] - clip_s1["x"], b_met[1] - clip_s1["y"], b_met[2] - clip_s1["x"], b_met[3] - clip_s1["y"]),
+                    (b_btn1[0] - clip_s1["x"], b_btn1[1] - clip_s1["y"], b_btn1[2] - clip_s1["x"], b_btn1[3] - clip_s1["y"]),
+                ]
+                b1 = _annotate_banner(img1, 1, "Subir Audio Seguro", targets_s1)
+                b1.save(GUIDE_DIR / "step1_upload.png", format="PNG", optimize=True)
+                raw_s1.unlink(missing_ok=True)
+
+                # Step 2: Navigate to Live Waveform Player
                 page.get_by_role("button", name=re.compile(r"Paso 2: Escuchar y verificar", re.I)).first.click()
                 page.wait_for_selector("text=Paso 2 de 3", timeout=15000)
                 page.wait_for_timeout(2000)
-                step2_path = GUIDE_DIR / "step2_sync.png"
-                page.screenshot(path=str(step2_path), clip={"x": 0, "y": 0, "width": 1440, "height": 1520})
 
-                loc_player = page.locator("iframe").first
+                loc_iframe = page.locator("iframe").first
                 loc_select = page.locator('[data-testid="stSelectbox"]').first
-                loc_continue = page.get_by_role("button", name=re.compile(r"Continuar al Paso 3", re.I)).first
+                loc_btn2 = page.get_by_role("button", name=re.compile(r"Continuar al Paso 3", re.I)).first
 
-                box_player = _loc_rect(loc_player, pad=6) or (210, 768, 1230, 1188)
-                box_select = _loc_rect(loc_select, pad=6) or (210, 1250, 947, 1318)
-                box_continue = _loc_rect(loc_continue, pad=6) or (586, 1395, 1230, 1435)
+                b_ifr = _loc_rect(loc_iframe, pad=4) or (210, 760, 1230, 1180)
+                b_sel = _loc_rect(loc_select, pad=4) or (210, 1240, 950, 1310)
+                b_btn2 = _loc_rect(loc_btn2, pad=4) or (580, 1390, 1230, 1435)
 
-                _annotate_image(
-                    step2_path,
-                    "PASO 2 DE 4",
-                    "Onda DAW + Metrónomo",
-                    [
-                        (230, box_player[1] - 68, "1. Reproductor DAW en Vivo", "Rueda: Zoom · Shift+Arrastrar: Mover · Metrónomo", box_player),
-                        (min(box_select[2] + 16, 1440 - 440), box_select[1] + 5, "2. Selector de Secciones", "Menú desplegable para saltar a cada cambio de ritmo", box_select),
-                        (max(20, box_continue[0] - 440), box_continue[1] - 8, "3. Continuar o Ajuste Manual", "Avanza directo al Paso 3 o abre el editor opcional", box_continue),
-                    ],
-                )
+                min_y2 = min(b_ifr[1], b_sel[1], b_btn2[1]) - 70
+                max_y2 = max(b_ifr[3], b_sel[3], b_btn2[3]) + 25
+                clip_s2 = {"x": 200, "y": max(0, min_y2), "width": 1040, "height": max_y2 - min_y2}
 
-                # Advance to Step 3, generate the .ZIP package, and capture export view
+                raw_s2 = GUIDE_DIR / "_raw_s2.png"
+                page.screenshot(path=str(raw_s2), clip=clip_s2)
+                img2 = Image.open(raw_s2)
+                targets_s2 = [
+                    (b_ifr[0] - clip_s2["x"], b_ifr[1] - clip_s2["y"], b_ifr[2] - clip_s2["x"], b_ifr[1] - clip_s2["y"] + 65),
+                    (b_sel[0] - clip_s2["x"], b_sel[1] - clip_s2["y"], b_sel[2] - clip_s2["x"], b_sel[3] - clip_s2["y"]),
+                    (b_btn2[0] - clip_s2["x"], b_btn2[1] - clip_s2["y"], b_btn2[2] - clip_s2["x"], b_btn2[3] - clip_s2["y"]),
+                ]
+                b2 = _annotate_banner(img2, 2, "Verificar Ritmo y Picos", targets_s2)
+                b2.save(GUIDE_DIR / "step2_sync.png", format="PNG", optimize=True)
+                raw_s2.unlink(missing_ok=True)
+
+                # Step 3: Navigate to Export Mod
                 page.get_by_role("button", name=re.compile(r"Paso 3: Descargar mod", re.I)).first.click()
                 page.wait_for_selector("text=Paso 3 de 3", timeout=15000)
                 page.get_by_role("button", name=re.compile(r"Generar y Descargar Paquete", re.I)).first.click()
                 page.wait_for_selector("text=Guardar Archivo", timeout=30000)
                 page.wait_for_timeout(1000)
-                step3_path = GUIDE_DIR / "step3_export.png"
-                page.screenshot(path=str(step3_path), clip={"x": 0, "y": 0, "width": 1440, "height": 1340})
 
-                loc_title = page.locator('input[aria-label="Título de la canción"], [data-testid="stTextInput"] input').first
+                loc_title = page.locator('[data-testid="stTextInput"]').first
                 loc_gen = page.get_by_role("button", name=re.compile(r"Generar y Descargar Paquete", re.I)).first
-                loc_install = page.locator('code:has-text("ImportedSongs"), [data-testid="stDownloadButton"]').all()
+                loc_exp = page.locator('button:has-text("Abrir carpeta")').first
 
-                box_title = _loc_rect(loc_title, pad=6) or (227, 725, 703, 761)
-                box_gen = _loc_rect(loc_gen, pad=6) or (226, 817, 1214, 857)
-                box_install = _enclosing_rect(loc_install, pad=8) or (226, 880, 1214, 1180)
+                b_ti = _loc_rect(loc_title, pad=4) or (220, 720, 720, 765)
+                b_ge = _loc_rect(loc_gen, pad=4) or (220, 810, 1220, 855)
+                b_ex = _loc_rect(loc_exp, pad=4) or (220, 960, 600, 1010)
 
-                _annotate_image(
-                    step3_path,
-                    "PASO 3 DE 4",
-                    "Empaquetador OGG + Meta.json",
-                    [
-                        (min(box_title[2] + 16, 1440 - 440), box_title[1] - 8, "1. Título y Artista del Mod", "Configura songName e intérprete para Dead as Disco", box_title),
-                        (230, box_gen[1] - 68, "2. Descarga .ZIP Lista", "Incluye <Canción>/audio.ogg (44.1 kHz) + Meta.json", box_gen),
-                        (230, box_install[1] - 68 if box_install else 960, "3. Instalación en 3 Pasos", "Pega %localappdata%\\Pagoda\\Saved\\ImportedSongs\\", box_install),
-                    ],
-                )
+                min_y3 = min(b_ti[1], b_ge[1], b_ex[1]) - 70
+                max_y3 = max(b_ti[3], b_ge[3], b_ex[3]) + 40
+                clip_s3 = {"x": 200, "y": max(0, min_y3), "width": 1040, "height": max_y3 - min_y3}
+
+                raw_s3 = GUIDE_DIR / "_raw_s3.png"
+                page.screenshot(path=str(raw_s3), clip=clip_s3)
+                img3 = Image.open(raw_s3)
+                targets_s3 = [
+                    (b_ti[0] - clip_s3["x"], b_ti[1] - clip_s3["y"], b_ti[2] - clip_s3["x"], b_ti[3] - clip_s3["y"]),
+                    (b_ge[0] - clip_s3["x"], b_ge[1] - clip_s3["y"], b_ge[2] - clip_s3["x"], b_ge[3] - clip_s3["y"]),
+                    (b_ex[0] - clip_s3["x"], b_ex[1] - clip_s3["y"], b_ex[2] - clip_s3["x"], b_ex[3] - clip_s3["y"]),
+                ]
+                b3 = _annotate_banner(img3, 3, "Descargar Paquete Mod", targets_s3)
+                b3.save(GUIDE_DIR / "step3_export.png", format="PNG", optimize=True)
+                raw_s3.unlink(missing_ok=True)
 
                 browser.close()
+
+        # Step 4: Generate banner from clean screenshot
+        _generate_step4_banner(GUIDE_DIR / "step4_install_game.png")
+
     finally:
         proc.terminate()
         try:

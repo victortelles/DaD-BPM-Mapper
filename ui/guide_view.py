@@ -38,41 +38,46 @@ GUIDE_STEPS: List[Tuple[str, str, str, str]] = [
 
 GUIDE_STEP_CALLOUTS: Dict[int, List[str]] = {
     1: [
-        "1. Arrastra o selecciona tu archivo de música (.mp3, .wav, .ogg o .flac) en el recuadro punteado.",
-        "2. Revisa las 4 tarjetas con el Ritmo (BPM), duración total, inicio del primer pulso y precisión.",
-        "3. Pulsa el botón azul «Continuar al Paso 2: Escuchar y Verificar».",
+        "1. Arrastra o selecciona tu archivo de música (.mp3, .wav, .ogg o .flac) en el recuadro de subida.",
+        "2. Comprueba las 4 tarjetas con el Ritmo (BPM), duración total, inicio del primer pulso y precisión.",
+        "3. Pulsa el botón «Paso 2: Escuchar y verificar» para continuar al monitor de onda interactivo.",
     ],
     2: [
-        "1. Activa «Metrónomo: ON» y pulsa «Reproducir» para escuchar los clics sobre la canción.",
-        "2. Elige cualquier cambio de ritmo en el menú desplegable y usa la rueda del ratón para zoom o Shift+arrastrar para mover la onda.",
-        "3. Si todo suena a tiempo, pulsa «Suena bien — Continuar al Paso 3: Descargar Mod (.ZIP)».",
+        "1. Controles de audio: activa «Metrónomo: ON», pulsa «Reproducir» y ajusta el volumen para oír los pulsos.",
+        "2. Navega entre las secciones en el menú desplegable y usa la rueda del ratón o arrastra para explorar la onda.",
+        "3. Si todo suena a tiempo, pulsa «Suena bien — Continuar al Paso 3: Descargar mod».",
     ],
     3: [
-        "1. Escribe el título de la canción y opcionalmente el artista y compositor.",
-        "2. Pulsa «Preparar paquete del mod (.ZIP)» para convertir el audio a formato OGG 44.1 kHz.",
-        "3. Haz clic en «Descargar archivo .ZIP» o instala directamente en la carpeta local del juego.",
+        "1. Revisa o escribe el título de la canción y los campos opcionales de artista y compositor.",
+        "2. Pulsa «Generar y Descargar Paquete» para empaquetar en formato OGG 44.1 kHz y Meta.json nativo.",
+        "3. Pulsa «Abrir carpeta en Windows» para ir directo a la carpeta %localappdata%\\Pagoda\\Saved\\ImportedSongs\\.",
     ],
     4: [
-        "1. Abre el cuadro Ejecutar en Windows con «Win + R» y pega `%localappdata%\\Pagoda\\Saved\\ImportedSongs\\`.",
-        "2. Extrae la carpeta de tu canción para que contenga `audio.ogg` y `Meta.json`.",
-        "3. Inicia Dead as Disco, elige tu canción importada y juega al ritmo de los pulsos.",
+        "1. En Windows, abre el cuadro Ejecutar con «Win + R» y pega %localappdata%\\Pagoda\\Saved\\ImportedSongs\\.",
+        "2. Descomprime tu archivo .ZIP para que la carpeta contenga directamente audio.ogg y Meta.json.",
+        "3. Inicia Dead as Disco, selecciona la pista en canciones importadas y juega al ritmo de los golpes.",
     ],
 }
 
 
 def _render_callout_box(step_num: int, callouts: List[str]) -> None:
-    """Render a high-contrast red-bordered legend explaining the highlighted markers in the image."""
-    items_html = "".join(
-        f'<div style="margin:0.25rem 0;font-size:0.9rem;line-height:1.45;">'
-        f'<span class="material-symbols-rounded" style="font-size:1rem;color:#ef4444;margin-right:6px;">target</span>'
-        f"{item}</div>"
-        for item in callouts
-    )
+    """Render a studio-palette legend explaining the numbered badge callouts on the banner image."""
+    items_html = ""
+    for idx, item in enumerate(callouts, start=1):
+        num = item.split(".")[0] if "." in item else str(idx)
+        text = item.split(".", 1)[1].strip() if "." in item else item
+        items_html += (
+            f'<div style="margin:0.35rem 0;font-size:0.88rem;line-height:1.45;display:flex;align-items:flex-start;gap:8px;">'
+            f'<span style="background:#38bdf8;color:#020617;font-weight:700;font-size:0.75rem;border-radius:999px;width:1.35rem;height:1.35rem;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px;">{num}</span>'
+            f'<span style="color:var(--foreground);">{text}</span>'
+            f"</div>"
+        )
+
     st.markdown(
-        f'<div class="dad-callout-red">'
-        f'<div style="font-weight:700;font-size:0.86rem;color:#ef4444;margin-bottom:0.35rem;display:flex;align-items:center;gap:6px;">'
-        f'<span class="material-symbols-rounded" style="font-size:1.05rem;">visibility</span>'
-        f"LEYENDA DE PUNTOS MARCADOS EN ROJO (PASO {step_num})</div>"
+        f'<div style="background:var(--secondary);border:1px solid var(--border);border-left:3px solid #38bdf8;border-radius:var(--radius);padding:0.75rem 0.95rem;margin-top:0.6rem;">'
+        f'<div style="font-weight:700;font-size:0.86rem;color:#38bdf8;margin-bottom:0.45rem;display:flex;align-items:center;gap:6px;">'
+        f'<span class="material-symbols-rounded" style="font-size:1.05rem;color:#38bdf8;">center_focus_strong</span>'
+        f"PUNTOS CLAVE DESTACADOS (PASO {step_num})</div>"
         f"{items_html}</div>",
         unsafe_allow_html=True,
     )
@@ -92,7 +97,7 @@ if hasattr(st, "dialog"):
 
     @st.dialog("Vista ampliada de la guía paso a paso", width="large")
     def _open_zoom_dialog(title: str, description: str, callouts: List[str], img_path: Path, step_num: int = 1) -> None:
-        """Open a large modal dialog displaying the guide screenshot at full width with its red callout legend."""
+        """Open a large modal dialog displaying the guide screenshot at full width with its callout legend."""
         _zoom_dialog_body(title, description, callouts, img_path, step_num)
 
 else:
