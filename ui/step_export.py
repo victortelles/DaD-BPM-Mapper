@@ -61,10 +61,11 @@ def render_step_export() -> None:
         return
 
     filename = st.session_state.get("filename") or "track.mp3"
-    default_song_name = st.session_state.get("song_name") or Path(filename).stem
+    default_song_name = sanitize_song_title(st.session_state.get("song_name") or Path(filename).stem)
+    step_header = f"Paso 3 de 3 — Empaquetar y descargar: {default_song_name}" if default_song_name else "Paso 3 de 3 — Descarga e instala tu Mod en Dead as Disco"
 
     render_micro_card(
-        "Paso 3 de 3 — Descarga e instala tu Mod en Dead as Disco",
+        step_header,
         "Genera la carpeta lista con audio.ogg (44.1 kHz) y Meta.json para ImportedSongs.",
         "audio.ogg + Meta.json",
     )

@@ -9,6 +9,7 @@ from audio_analysis.beat_detection import (
     detect_beat_offset_ms,
     detect_tempo_sections,
 )
+from audio_analysis.security import sanitize_song_title
 from models.song_metadata import BPMSection
 from ui.flag_editor import render_flag_editor, render_offset_controls
 from ui.live_waveform_player import render_live_waveform_player
@@ -124,10 +125,12 @@ def render_step_sync() -> None:
     duration = len(y) / float(sr)
     sections = st.session_state.get("bpm_sections") or []
     filename = st.session_state.get("filename") or "track.mp3"
+    clean_title = sanitize_song_title(st.session_state.get("song_name") or Path(filename).stem)
 
     # 1. Guided Instruction Banner at the top of Step 2
+    step_subtitle = f"Paso 2 de 3 — Escuchar y verificar: {clean_title}" if clean_title else "Paso 2 de 3 — Escucha tu canción con el metrónomo"
     render_micro_card(
-        "Paso 2 de 3 — Escucha tu canción con el metrónomo",
+        step_subtitle,
         "Verifica en segundos si el ritmo automático coincide con tu canción.",
         f"{len(sections)} bandera(s)",
     )
@@ -149,7 +152,7 @@ def render_step_sync() -> None:
         y=y,
         sr=sr,
         bpm_sections=sections,
-        title=f"Onda en Vivo: {filename}",
+        title=f"Monitor de Onda y Ritmo — {clean_title}" if clean_title else "Monitor de Onda y Ritmo",
         height=420,
         seek_time=seek_target,
         beat_offset_ms=int(st.session_state.get("beat_offset_ms", 0)),

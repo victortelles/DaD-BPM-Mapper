@@ -44,6 +44,35 @@ def _create_demo_multitempo_wav(target_dir: Path) -> Path:
     return wav_path
 
 
+def _loc_rect(loc, pad: int = 6) -> Optional[Tuple[int, int, int, int]]:
+    """Query a Playwright locator's dynamic bounding box and return (x0, y0, x1, y1) with padding."""
+    try:
+        box = loc.bounding_box()
+        if box:
+            return (
+                int(box["x"] - pad),
+                int(box["y"] - pad),
+                int(box["x"] + box["width"] + pad),
+                int(box["y"] + box["height"] + pad),
+            )
+    except Exception:
+        pass
+    return None
+
+
+def _enclosing_rect(locs: List[Any], pad: int = 6) -> Optional[Tuple[int, int, int, int]]:
+    """Calculate the bounding box enclosing multiple Playwright locators."""
+    boxes = [l.bounding_box() for l in locs if l and l.bounding_box()]
+    if not boxes:
+        return None
+    return (
+        int(min(b["x"] for b in boxes) - pad),
+        int(min(b["y"] for b in boxes) - pad),
+        int(max(b["x"] + b["width"] for b in boxes) + pad),
+        int(max(b["y"] + b["height"] for b in boxes) + pad),
+    )
+
+
 def _wait_for_server(url: str, timeout_s: float = 25.0) -> None:
     """Poll the local Streamlit HTTP server until it responds."""
     deadline = time.time() + timeout_s
@@ -158,14 +187,24 @@ def capture_all_screenshots() -> None:
                 page.wait_for_timeout(1000)
                 step1_path = GUIDE_DIR / "step1_upload.png"
                 page.screenshot(path=str(step1_path), clip={"x": 0, "y": 0, "width": 1440, "height": 1340})
+
+                loc_theme = page.locator('button:has-text("Modo"), button:has-text("Tema")').first
+                loc_uploader = page.locator('[data-testid="stFileUploader"]').first
+                loc_metrics = page.locator('[data-testid="stMetric"]').all()
+                loc_btn1 = page.get_by_role("button", name=re.compile(r"Ir al Paso 2", re.I)).first
+
+                box_theme = _loc_rect(loc_theme, pad=5) or (960, 104, 1230, 144)
+                box_uploader = _loc_rect(loc_uploader, pad=6) or (226, 892, 1214, 990)
+                box_summary = _enclosing_rect(loc_metrics + [loc_btn1], pad=8) or (226, 1092, 1214, 1235)
+
                 _annotate_image(
                     step1_path,
                     "PASO 1 DE 4",
                     "Subida Segura + Auto-BPM",
                     [
-                        (540, 68, "1. Modo Oscuro / Claro", "Alterna entre el tema oscuro y claro", (1220, 16, 1420, 60)),
-                        (890, 745, "2. Subida con Firewall Binario", "Valida magic bytes (.mp3/.wav/.ogg/.flac) y MD5", (140, 650, 1300, 840)),
-                        (890, 1020, "3. Resumen y Avance Directo", "Muestra BPM, secciones detectadas y pasa al Paso 2", (140, 870, 1300, 1070)),
+                        (510, box_theme[1] - 8, "1. Modo Oscuro / Claro", "Alterna entre el tema oscuro y claro", box_theme),
+                        (230, box_uploader[1] - 68, "2. Subida con Firewall Binario", "Valida magic bytes (.mp3/.wav/.ogg/.flac) y MD5", box_uploader),
+                        (230, box_summary[1] - 68, "3. Resumen y Avance Directo", "Muestra BPM, secciones detectadas y pasa al Paso 2", box_summary),
                     ],
                 )
 
@@ -175,14 +214,23 @@ def capture_all_screenshots() -> None:
                 page.wait_for_timeout(2000)
                 step2_path = GUIDE_DIR / "step2_sync.png"
                 page.screenshot(path=str(step2_path), clip={"x": 0, "y": 0, "width": 1440, "height": 1520})
+
+                loc_player = page.locator("iframe").first
+                loc_select = page.locator('[data-testid="stSelectbox"]').first
+                loc_continue = page.get_by_role("button", name=re.compile(r"Continuar al Paso 3", re.I)).first
+
+                box_player = _loc_rect(loc_player, pad=6) or (210, 768, 1230, 1188)
+                box_select = _loc_rect(loc_select, pad=6) or (210, 1250, 947, 1318)
+                box_continue = _loc_rect(loc_continue, pad=6) or (586, 1395, 1230, 1435)
+
                 _annotate_image(
                     step2_path,
                     "PASO 2 DE 4",
                     "Onda DAW + Metrónomo",
                     [
-                        (890, 665, "1. Reproductor DAW en Vivo", "Rueda: Zoom · Shift+Arrastrar: Mover · Metrónomo", (140, 480, 1300, 780)),
-                        (890, 1110, "2. Selector de Secciones", "Menú desplegable para saltar a cada cambio de ritmo", (140, 790, 1300, 930)),
-                        (890, 1340, "3. Continuar o Ajuste Manual", "Avanza directo al Paso 3 o abre el editor opcional", (140, 940, 1300, 1060)),
+                        (230, box_player[1] - 68, "1. Reproductor DAW en Vivo", "Rueda: Zoom · Shift+Arrastrar: Mover · Metrónomo", box_player),
+                        (min(box_select[2] + 16, 1440 - 440), box_select[1] + 5, "2. Selector de Secciones", "Menú desplegable para saltar a cada cambio de ritmo", box_select),
+                        (max(20, box_continue[0] - 440), box_continue[1] - 8, "3. Continuar o Ajuste Manual", "Avanza directo al Paso 3 o abre el editor opcional", box_continue),
                     ],
                 )
 
@@ -194,14 +242,23 @@ def capture_all_screenshots() -> None:
                 page.wait_for_timeout(1000)
                 step3_path = GUIDE_DIR / "step3_export.png"
                 page.screenshot(path=str(step3_path), clip={"x": 0, "y": 0, "width": 1440, "height": 1340})
+
+                loc_title = page.locator('input[aria-label="Título de la canción"], [data-testid="stTextInput"] input').first
+                loc_gen = page.get_by_role("button", name=re.compile(r"Generar y Descargar Paquete", re.I)).first
+                loc_install = page.locator('code:has-text("ImportedSongs"), [data-testid="stDownloadButton"]').all()
+
+                box_title = _loc_rect(loc_title, pad=6) or (227, 725, 703, 761)
+                box_gen = _loc_rect(loc_gen, pad=6) or (226, 817, 1214, 857)
+                box_install = _enclosing_rect(loc_install, pad=8) or (226, 880, 1214, 1180)
+
                 _annotate_image(
                     step3_path,
                     "PASO 3 DE 4",
                     "Empaquetador OGG + Meta.json",
                     [
-                        (890, 625, "1. Título y Artista del Mod", "Configura songName e intérprete para Dead as Disco", (140, 390, 1300, 550)),
-                        (890, 885, "2. Descarga .ZIP Lista", "Incluye <Canción>/audio.ogg (44.1 kHz) + Meta.json", (140, 560, 1300, 700)),
-                        (890, 1085, "3. Instalación en 3 Pasos", "Pega %localappdata%\\Pagoda\\Saved\\ImportedSongs\\", (140, 715, 1300, 970)),
+                        (min(box_title[2] + 16, 1440 - 440), box_title[1] - 8, "1. Título y Artista del Mod", "Configura songName e intérprete para Dead as Disco", box_title),
+                        (230, box_gen[1] - 68, "2. Descarga .ZIP Lista", "Incluye <Canción>/audio.ogg (44.1 kHz) + Meta.json", box_gen),
+                        (230, box_install[1] - 68 if box_install else 960, "3. Instalación en 3 Pasos", "Pega %localappdata%\\Pagoda\\Saved\\ImportedSongs\\", box_install),
                     ],
                 )
 

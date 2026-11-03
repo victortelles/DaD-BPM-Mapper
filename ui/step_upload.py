@@ -195,11 +195,11 @@ def render_step_upload() -> None:
         duration = len(y) / float(sr)
         base_bpm = sections[0].bpm if sections else 120.0
         offset_ms = int(st.session_state.get("beat_offset_ms", 0))
-        loaded_name = st.session_state.get("filename") or "Canción cargada"
+        clean_title = sanitize_song_title(st.session_state.get("song_name") or Path(st.session_state.get("filename") or "Cancion").stem)
 
         with st.container(border=True):
             st.success(
-                f"**Canción lista:** `{loaded_name}` analizada correctamente.",
+                f"**Canción lista:** `{clean_title}` analizada correctamente.",
                 icon=":material/check_circle:",
             )
             m1, m2, m3, m4 = st.columns(4)

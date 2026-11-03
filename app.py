@@ -5,6 +5,7 @@ from typing import Any, Dict
 
 import streamlit as st
 
+from audio_analysis.security import sanitize_song_title
 from ui.guide_view import render_guide_view
 from ui.legal_view import render_legal_view
 from ui.step_export import render_step_export
@@ -146,7 +147,13 @@ def _render_stepper_bar(current_step: int, has_audio: bool) -> None:
                 st.session_state["wizard_step"] = step_num
                 st.rerun()
 
-    banner_text = STEP_CONTEXT_BANNERS.get(current_step, STEP_CONTEXT_BANNERS[1])
+    clean_title = sanitize_song_title(st.session_state.get("song_name") or "")
+    if current_step == 2 and clean_title:
+        banner_text = f"**Paso actual (2 de 3) — {clean_title}:** Pulsa **Reproducir** con el **Metrónomo** activado para comprobar el ritmo."
+    elif current_step == 3 and clean_title:
+        banner_text = f"**Paso actual (3 de 3) — {clean_title}:** Confirma el título, genera el archivo **.ZIP** e instálalo en el juego."
+    else:
+        banner_text = STEP_CONTEXT_BANNERS.get(current_step, STEP_CONTEXT_BANNERS[1])
     banner_icon = STEP_CONTEXT_ICONS.get(current_step, ":material/looks_one:")
     if not has_audio and current_step == 1:
         banner_text += " *(Los Pasos 2 y 3 se desbloquean al subir tu canción).* "

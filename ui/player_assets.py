@@ -7,18 +7,12 @@ from typing import Any, Dict
 def build_player_css(theme_mode: str = "dark") -> str:
     """Build CSS styles for the HTML5 waveform player in 'dark' or 'light' studio mode."""
     is_light = (theme_mode or "dark").strip().lower() == "light"
-    bg = "#f8fafc" if is_light else "#020617"
-    fg = "#0f172a" if is_light else "#f8fafc"
-    card = "#ffffff" if is_light else "#0f172a"
-    border = "#e2e8f0" if is_light else "#1e293b"
-    muted_bg = "#f1f5f9" if is_light else "#1e293b"
-    muted_fg = "#64748b" if is_light else "#94a3b8"
-    primary = "#0284c7" if is_light else "#38bdf8"
-    primary_fg = "#ffffff" if is_light else "#020617"
-    hover_bg = "#e0f2fe" if is_light else "#1e293b"
-    hover_fg = "#0369a1" if is_light else "#38bdf8"
-    accent = "#0ea5e9"
-    scroll_thumb = "#cbd5e1" if is_light else "#334155"
+    bg, fg = ("#f8fafc", "#0f172a") if is_light else ("#020617", "#f8fafc")
+    card, border = ("#ffffff", "#e2e8f0") if is_light else ("#0f172a", "#1e293b")
+    muted_bg, muted_fg = ("#f1f5f9", "#64748b") if is_light else ("#1e293b", "#94a3b8")
+    primary, primary_fg = ("#0284c7", "#ffffff") if is_light else ("#38bdf8", "#020617")
+    hover_bg, hover_fg = ("#e0f2fe", "#0369a1") if is_light else ("#1e293b", "#38bdf8")
+    accent, scroll_thumb = "#0ea5e9", ("#cbd5e1" if is_light else "#334155")
 
     return f"""
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&family=JetBrains+Mono:wght@500;600;700&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap');
@@ -31,8 +25,7 @@ def build_player_css(theme_mode: str = "dark") -> str:
   .header-title {{ font-size: 13px; font-weight: 700; color: {primary}; display: flex; align-items: center; gap: 6px; white-space: nowrap; }}
   .metronome-box {{ display: flex; align-items: center; gap: 8px; background: {bg}; border: 1px solid {border}; padding: 4px 10px; border-radius: 8px; }}
   .metro-light {{ width: 11px; height: 11px; border-radius: 50%; background: {muted_bg}; border: 1px solid {muted_fg}; transition: background-color 0.05s ease, box-shadow 0.05s ease; }}
-  .metro-light.downbeat {{ background: {primary}; box-shadow: 0 0 8px {primary}, 0 0 14px {accent}; }}
-  .metro-light.upbeat {{ background: {accent}; box-shadow: 0 0 6px {accent}; }}
+  .metro-light.downbeat {{ background: {primary}; box-shadow: 0 0 8px {primary}, 0 0 14px {accent}; }} .metro-light.upbeat {{ background: {accent}; box-shadow: 0 0 6px {accent}; }}
   .metro-bpm {{ font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 700; color: {fg}; min-width: 72px; }}
   .metro-toggle {{ background: {card}; border: 1px solid {border}; border-radius: 6px; padding: 2px 7px; font-size: 11px; font-weight: 600; cursor: pointer; color: {muted_fg}; display: inline-flex; align-items: center; gap: 4px; }}
   .metro-toggle.active {{ background: {primary}; border-color: {primary}; color: {primary_fg}; }}
@@ -42,26 +35,26 @@ def build_player_css(theme_mode: str = "dark") -> str:
   .copy-time-btn:hover {{ background: {hover_bg}; border-color: {primary}; color: {hover_fg}; }}
   .copy-badge {{ font-size: 11px; color: {primary}; font-weight: 700; display: none; align-items: center; gap: 3px; }}
   .waveform-wrapper {{ position: relative; width: 100%; height: 210px; background: {bg}; border: 1px solid {border}; border-radius: 8px; overflow-x: auto; overflow-y: hidden; cursor: crosshair; }}
-  .waveform-wrapper::-webkit-scrollbar {{ height: 7px; }}
-  .waveform-wrapper::-webkit-scrollbar-track {{ background: {muted_bg}; }}
-  .waveform-wrapper::-webkit-scrollbar-thumb {{ background: {scroll_thumb}; border-radius: 4px; }}
-  .waveform-wrapper::-webkit-scrollbar-thumb:hover {{ background: {primary}; }}
+  .waveform-wrapper::-webkit-scrollbar {{ height: 7px; }} .waveform-wrapper::-webkit-scrollbar-track {{ background: {muted_bg}; }}
+  .waveform-wrapper::-webkit-scrollbar-thumb {{ background: {scroll_thumb}; border-radius: 4px; }} .waveform-wrapper::-webkit-scrollbar-thumb:hover {{ background: {primary}; }}
   #waveCanvas {{ display: block; height: 210px; }}
   .daw-hint-bar {{ display: flex; justify-content: space-between; align-items: center; margin-top: 6px; padding: 4px 10px; background: {bg}; border: 1px solid {border}; border-radius: 6px; font-size: 11px; color: {muted_fg}; font-weight: 500; gap: 8px; flex-wrap: wrap; }}
   .hint-item {{ display: inline-flex; align-items: center; gap: 4px; }}
   .controls-row {{ display: flex; justify-content: space-between; align-items: center; margin-top: 8px; gap: 10px; flex-wrap: nowrap; }}
   button {{ background: {bg}; color: {fg}; border: 1px solid {border}; border-radius: 8px; padding: 5px 10px; font-size: 12px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; transition: all 0.12s ease; }}
   button:hover {{ background: {hover_bg}; border-color: {primary}; color: {hover_fg}; }}
-  .btn-primary {{ background: {primary}; border-color: {primary}; color: {primary_fg}; }}
-  .btn-primary:hover {{ background: {accent}; border-color: {accent}; color: #ffffff; }}
-  .btn-danger {{ background: #ef4444; border-color: #ef4444; color: #ffffff; }}
-  .btn-danger:hover {{ background: #dc2626; border-color: #dc2626; color: #ffffff; }}
+  .btn-primary {{ background: {primary}; border-color: {primary}; color: {primary_fg}; }} .btn-primary:hover {{ background: {accent}; border-color: {accent}; color: #ffffff; }}
+  .btn-danger {{ background: #ef4444; border-color: #ef4444; color: #ffffff; }} .btn-danger:hover {{ background: #dc2626; border-color: #dc2626; color: #ffffff; }}
   .icon-svg {{ width: 13px; height: 13px; fill: currentColor; flex-shrink: 0; }}
   .zoom-controls {{ background: {bg}; padding: 4px 10px; border-radius: 8px; border: 1px solid {border}; }}
   .zoom-label {{ font-size: 11px; color: {muted_fg}; font-weight: 600; }}
   input[type="range"] {{ accent-color: {primary}; cursor: pointer; width: 88px; }}
   .zoom-preset {{ padding: 3px 7px; font-size: 11px; border-radius: 6px; }}
   .chk-label {{ display: flex; align-items: center; gap: 4px; font-size: 11px; color: {fg}; font-weight: 500; cursor: pointer; }}
+  .vol-controls {{ display: flex; align-items: center; gap: 5px; background: {bg}; border: 1px solid {border}; border-radius: 8px; padding: 3px 8px; }}
+  .vol-btn {{ background: transparent; border: none; padding: 0; color: {fg}; cursor: pointer; display: inline-flex; align-items: center; }} .vol-btn:hover {{ background: transparent; color: {primary}; }}
+  .vol-slider {{ width: 62px !important; height: 4px; accent-color: {primary}; cursor: pointer; }}
+  .vol-val {{ font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700; color: {muted_fg}; min-width: 26px; }}
 """
 
 
@@ -313,9 +306,7 @@ def build_player_js() -> str:
     speedIdx = (speedIdx + 1) % speeds.length; audio.playbackRate = speeds[speedIdx]; btnSpeed.innerText = speeds[speedIdx].toFixed(2) + "x";
   });
   zoomSlider.addEventListener("input", (e) => setZoom(parseFloat(e.target.value)));
-  btnZoomFit.addEventListener("click", () => setZoom(1));
-  btnZoom5x.addEventListener("click", () => setZoom(5));
-  btnZoom15x.addEventListener("click", () => setZoom(15));
+  btnZoomFit.addEventListener("click", () => setZoom(1)); btnZoom5x.addEventListener("click", () => setZoom(5)); btnZoom15x.addEventListener("click", () => setZoom(15));
   btnCopyTime.addEventListener("click", () => {
     const txt = (audio.currentTime || 0).toFixed(3);
     navigator.clipboard.writeText(txt).then(() => {
@@ -334,6 +325,18 @@ def build_player_js() -> str:
     jumpToFlagTime(target);
   });
   chkBeatGrid.addEventListener("change", draw);
+  const btnVolMute = document.getElementById("btnVolMute"), volSlider = document.getElementById("volSlider"), volValue = document.getElementById("volValue"), volIcon = document.getElementById("volIcon");
+  let savedVol = 0.75; audio.volume = 0.75;
+  function updateVol(v) {
+    volSlider.value = v; volValue.innerText = Math.round(v * 100) + "%";
+    volIcon.innerHTML = v === 0
+      ? '<path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/>'
+      : '<path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>';
+  }
+  if (volSlider) {
+    volSlider.addEventListener("input", (e) => { const v = parseFloat(e.target.value); audio.volume = v; if (v > 0) savedVol = v; updateVol(v); });
+    btnVolMute.addEventListener("click", () => { if (audio.volume > 0) { savedVol = audio.volume; audio.volume = 0; updateVol(0); } else { audio.volume = savedVol || 0.75; updateVol(audio.volume); } });
+  }
 """
 
 
@@ -348,9 +351,8 @@ def build_waveform_player_html(
         parsed_payload: Dict[str, Any] = json.loads(payload_json) if payload_json else {}
     except Exception:
         parsed_payload = {}
-    for key in ("duration", "envelope"):
-        if key in kwargs:
-            parsed_payload[key] = kwargs[key]
+    for k in ("duration", "envelope"):
+        if k in kwargs: parsed_payload[k] = kwargs[k]
     if "sections" in kwargs or "flags" in kwargs:
         parsed_payload["sections"] = kwargs.get("sections", kwargs.get("flags"))
     if "beat_offset_ms" in kwargs:
@@ -378,6 +380,11 @@ def build_waveform_player_html(
       <span class="zoom-label">Zoom:</span><input type="range" id="zoomSlider" min="1" max="16" value="1" step="0.5"><span id="zoomValue" style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;min-width:28px;">1x</span>
       <button class="zoom-preset" id="btnZoomFit">1x</button><button class="zoom-preset" id="btnZoom5x">5x</button><button class="zoom-preset" id="btnZoom15x">15x</button>
       <label class="chk-label"><input type="checkbox" id="chkFollow" checked> Seguir</label><label class="chk-label" title="Mostrar cuadrícula de beats"><input type="checkbox" id="chkBeatGrid" checked> Cuadrícula</label>
+    </div>
+    <div class="vol-controls" title="Volumen de la música (ajústalo para escuchar mejor el metrónomo)">
+      <button class="vol-btn" id="btnVolMute" title="Silenciar / Activar audio"><svg class="icon-svg" id="volIcon" viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg></button>
+      <input type="range" id="volSlider" min="0" max="1" step="0.05" value="0.75" class="vol-slider" title="Ajustar volumen de la música">
+      <span id="volValue" class="vol-val">75%</span>
     </div>
   </div>
 </div>

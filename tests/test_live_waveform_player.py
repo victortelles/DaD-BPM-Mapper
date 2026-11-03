@@ -107,6 +107,11 @@ def test_player_assets_daw_mouse_controls_and_themes():
     assert "Shift / Ctrl + Arrastrar: Mover línea de tiempo" in html_dark
     assert "Clic / Arrastrar: Mover reproductor" in html_dark
     assert "material-symbols-rounded" in html_dark
+    # Verify Volume controls and audio element volume synchronization
+    assert "vol-controls" in dark_css and "vol-slider" in dark_css
+    assert "audio.volume = 0.75" in js_code
+    assert "volSlider" in js_code and "btnVolMute" in js_code
+    assert 'id="volSlider"' in html_dark and 'id="btnVolMute"' in html_dark
     assert "const initialSeek = 2.5;" in html_dark
 
     html_light = build_player_html(
