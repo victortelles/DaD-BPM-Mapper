@@ -8,6 +8,7 @@ import pytest
 
 from audio_analysis.bpm_sections import create_initial_sections
 from audio_analysis.exceptions import ValidationError
+from audio_analysis.security import compute_audio_md5
 from export.exceptions import ExportIOError
 from export.package_builder import (
     build_mod_zip,
@@ -207,6 +208,8 @@ def test_zip_archive_bundle_generation():
         assert json_data["songName"] == song_name
         assert json_data["tempo"] == 128
         assert json_data["beatOffset"] == 145
+        assert json_data["originalAudioFileHash"] == compute_audio_md5(fake_ogg_bytes)
+        assert json_data["originalAudioFilePath"].endswith(f"{safe_folder}/audio.ogg")
         assert zf.read(f"{safe_folder}/audio.ogg") == fake_ogg_bytes
 
 

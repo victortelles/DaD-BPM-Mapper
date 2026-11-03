@@ -139,6 +139,8 @@ def render_step_export() -> None:
             with st.spinner("Convirtiendo copia a audio.ogg (44.1 kHz) y empaquetando Meta.json..."):
                 try:
                     ogg_bytes = _transcode_copy_to_ogg(st.session_state["audio_bytes"], source_ext)
+                    from audio_analysis.security import compute_audio_md5
+                    metadata.originalAudioFileHash = compute_audio_md5(ogg_bytes)
                     export_res = build_mod_zip(
                         effective_song_name,
                         st.session_state["bpm_sections"],
@@ -238,7 +240,8 @@ def render_step_export() -> None:
         expanded=False,
         icon=":material/inventory_2:",
     ):
-        st.code(metadata.to_meta_json(indent="\t"), language="json")
+        active_meta = st.session_state["export_result"].metadata if st.session_state.get("export_result") is not None else metadata
+        st.code(active_meta.to_meta_json(indent="\t"), language="json")
 
     nav_back, nav_restart = st.columns(2, gap="medium")
     with nav_back:
