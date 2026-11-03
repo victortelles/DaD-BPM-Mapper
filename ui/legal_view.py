@@ -28,13 +28,14 @@ LEGAL_POLICIES: List[Tuple[str, str, str, List[str]]] = [
         ],
     ),
     (
-        "3. Privacidad y Procesamiento Efímero (No Almacenamiento)",
-        "Cero Retención de Datos",
-        "Los audios se procesan exclusivamente en memoria RAM de la sesión activa sin alterar el archivo original y sin persistencia permanente en servidores externos.",
+        "3. Política de Privacidad de Datos (Cero Recopilación)",
+        "Sin Almacenamiento en Bases de Datos",
+        "La aplicación no recopila ni toma datos de los usuarios. Lo único que utiliza es el audio que proporciona para sincronizar los BPMs en memoria RAM, el cual no se almacena en ninguna base de datos ni servidor externo.",
         [
-            "Las muestras acústicas y el archivo `.ogg` transcodificado viven únicamente en la memoria volátil de tu sesión.",
-            "No se recopilan datos personales, telemetría invasiva ni copias ocultas de las pistas analizadas.",
-            "Al cerrar la pestaña o reiniciar la sesión, todos los buffers de audio son liberados automáticamente.",
+            "La aplicación no solicita ni registra nombres, correos, cuentas ni datos personales de los usuarios.",
+            "Lo único que se procesa es el archivo de audio que proporcionas, exclusivamente en la memoria volátil (RAM) de la sesión para el cálculo de ritmos y BPMs.",
+            "El audio no se almacena en ninguna base de datos, servicio en la nube ni disco externo permanente.",
+            "Al cerrar la pestaña o reiniciar la sesión, todos los buffers de audio y metadatos se eliminan por completo.",
         ],
     ),
     (

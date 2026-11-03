@@ -25,9 +25,9 @@ When importing custom songs with tempo changes, asymmetric intros, or syncopated
 
 ## Quick Path
 
-1. **Upload Track (Step 1)**: Upload your audio file through the binary magic-byte security firewall.
-2. **Sync Rhythm (Step 2)**: Verify the first downbeat (`beatOffset`) and tempo sections on the live waveform player with WebAudio metronome and beat grid.
-3. **Export Mod (Step 3)**: Download the `<SongName>.zip` bundle (or export directly) into `%localappdata%\Pagoda\Saved\ImportedSongs\`.
+1. **Upload Song (Step 1)**: Upload your audio file through the binary magic-byte security firewall.
+2. **Listen & Verify (Step 2)**: Verify the first downbeat (`beatOffset`) and tempo sections on the live waveform player with WebAudio metronome and beat grid.
+3. **Download Mod (Step 3)**: Download the `<SongName>.zip` bundle (or open the local folder directly) into `%localappdata%\Pagoda\Saved\ImportedSongs\`.
 
 ---
 
@@ -213,6 +213,7 @@ pytest tests/test_architecture_limits.py tests/test_e2e_workflow.py -v
 
 ## Security, Privacy & Legal Disclaimer (DMCA)
 
+- **Data Privacy (Zero Data Collection)**: The application does not collect, track, or store any personal user data. It strictly uses the provided audio file to calculate BPM and tempo synchronization locally in volatile RAM, without storing it in any database or external server.
 - **Binary Upload Firewall**: Only `.mp3`, `.wav`, `.ogg`, and `.flac` files (`64 B` to `100 MB`) with authentic binary magic-byte headers (`ID3`/MPEG sync, `RIFF`/`WAVE`, `OggS`, `fLaC`) are accepted. Renamed executables or scripts are rejected before reaching any audio decoder.
 - **100% Ephemeral & Non-Destructive Processing**: Uploaded tracks are processed in memory or isolated temporary directories. Original files are never modified, preserving their exact `originalAudioFileHash` (MD5).
 - **Intellectual Property & DMCA**: This project is a non-commercial community modding utility and is not affiliated with or endorsed by the creators of **Dead as Disco** (*Pagoda*). Users are solely responsible for owning the rights or licenses to any music files processed locally for personal use.

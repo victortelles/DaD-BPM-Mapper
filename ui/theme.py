@@ -281,9 +281,9 @@ def apply_studio_theme(theme_mode: Optional[str] = None) -> None:
 def render_step_indicator(current_step: int, unlocked_step: Optional[int] = None) -> None:
     """Render the 3-step visual progress indicator bar using Material Symbols."""
     steps = [
-        (1, "1. Subir Audio", "Paso 1: Subir Audio"),
-        (2, "2. Sincronizar Ritmo", "Paso 2: Sincronizar Ritmo"),
-        (3, "3. Descargar Mod", "Paso 3: Descargar Mod"),
+        (1, "1. Subir canción", "Paso 1: Subir canción"),
+        (2, "2. Escuchar y verificar", "Paso 2: Escuchar y verificar"),
+        (3, "3. Descargar mod", "Paso 3: Descargar mod"),
     ]
     items_html = []
     for num, short_label, full_label in steps:

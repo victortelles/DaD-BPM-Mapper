@@ -11,6 +11,7 @@ from export.exceptions import ExportIOError
 from export.package_builder import (
     build_mod_zip,
     generate_metadata,
+    get_game_imported_songs_dir,
     sanitize_folder_name,
 )
 from models.song_metadata import ExportResult
@@ -22,6 +23,26 @@ def _parse_csv_list(raw_text: str) -> List[str]:
     if not raw_text or not raw_text.strip():
         return []
     return [item.strip() for item in raw_text.split(",") if item.strip()]
+
+
+def _open_game_folder_in_explorer() -> bool:
+    """Open the local ImportedSongs folder in Windows Explorer if running on Windows."""
+    import os
+    import subprocess
+    import sys
+
+    if sys.platform != "win32":
+        return False
+    try:
+        folder = get_game_imported_songs_dir()
+        folder.mkdir(parents=True, exist_ok=True)
+        if hasattr(os, "startfile"):
+            os.startfile(str(folder))
+        else:
+            subprocess.Popen(["explorer", str(folder)])
+        return True
+    except Exception:
+        return False
 
 
 def _transcode_copy_to_ogg(raw_audio: bytes, source_ext: str) -> bytes:
@@ -50,7 +71,7 @@ def render_step_export() -> None:
             "Bloqueado",
         )
         if st.button(
-            "Ir al Paso 1: Subir Canción",
+            "Ir al Paso 1: Subir canción",
             key="btn_locked_export_to_step1",
             type="primary",
             icon=":material/arrow_back:",
@@ -62,7 +83,7 @@ def render_step_export() -> None:
 
     filename = st.session_state.get("filename") or "track.mp3"
     default_song_name = sanitize_song_title(st.session_state.get("song_name") or Path(filename).stem)
-    step_header = f"Paso 3 de 3 — Empaquetar y descargar: {default_song_name}" if default_song_name else "Paso 3 de 3 — Descarga e instala tu Mod en Dead as Disco"
+    step_header = f"Paso 3 de 3 — Descargar mod: {default_song_name}" if default_song_name else "Paso 3 de 3 — Descargar mod"
 
     render_micro_card(
         step_header,
@@ -168,7 +189,24 @@ def render_step_export() -> None:
             f"- **Paso A:** Descomprime el archivo `.ZIP` descargado para obtener la carpeta **`{safe_folder}`**.\n"
             "- **Paso B:** Presiona **`Win + R`** en tu teclado, pega la siguiente ruta y pulsa **Enter**:"
         )
-        st.code(r"%localappdata%\Pagoda\Saved\ImportedSongs\\", language="text")
+        st.code("%localappdata%\\Pagoda\\Saved\\ImportedSongs\\", language="text")
+
+        col_open, col_hint = st.columns([1.6, 2.4], gap="small")
+        with col_open:
+            if st.button(
+                "Abrir carpeta en Windows",
+                key="btn_open_imported_songs_dir",
+                icon=":material/folder_open:",
+                help="Abre directamente %localappdata%\\Pagoda\\Saved\\ImportedSongs\\ en el Explorador de Windows.",
+            ):
+                opened = _open_game_folder_in_explorer()
+                if opened:
+                    st.toast("Carpeta ImportedSongs abierta en el Explorador de Windows.", icon=":material/check_circle:")
+                else:
+                    st.info("Copia la ruta superior y pégala en el Explorador de Windows.", icon=":material/info:")
+        with col_hint:
+            st.caption("Acceso directo rápido a la carpeta del juego para pegar tu mod.")
+
         st.markdown(
             f"- **Paso C:** Copia la carpeta **`{safe_folder}`** (que contiene `audio.ogg` y `Meta.json`) "
             "dentro de **`ImportedSongs`**. ¡Listo para jugar!"

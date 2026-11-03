@@ -14,6 +14,7 @@ from ui.step_upload import render_step_upload
 from ui.theme import apply_studio_theme, render_step_indicator
 
 LOGO_PATH = Path(__file__).resolve().parent / "Logo.PNG"
+BANNER_PATH = Path(__file__).resolve().parent / "assets" / "Banner.png"
 
 SESSION_DEFAULTS: Dict[str, Any] = {
     "theme_mode": "dark",
@@ -68,55 +69,94 @@ def reset_analysis() -> None:
             st.session_state[key] = list(default_val) if isinstance(default_val, list) else default_val
 
 
-def _render_header() -> None:
-    """Render the studio brand header, active song badge, theme toggle, and top navigation bar."""
-    st.markdown('<div style="padding-top: 0.45rem;"></div>', unsafe_allow_html=True)
-    col_logo, col_title, col_actions = st.columns([0.75, 4.25, 2.0], gap="medium")
-    with col_logo:
+def _render_sidebar() -> None:
+    """Render the studio sidebar: logo, navigation, project summary, data privacy, repo link, and theme toggle."""
+    with st.sidebar:
         if LOGO_PATH.exists():
-            st.image(str(LOGO_PATH), width=76)
-    with col_title:
-        st.title("Dead as Disco · BPM Mapper")
-        st.caption("Asistente guiado en 3 pasos para crear mods musicales sincronizados (`audio.ogg` + `Meta.json`)")
-    with col_actions:
+            st.image(str(LOGO_PATH), width=180)
+        st.markdown("### Dead as Disco · BPM")
+        st.caption("Herramienta de sincronización rítmica y empaquetado de mods (`audio.ogg` + `Meta.json`).")
+
+        st.divider()
+
+        st.markdown("**:material/menu: Menú principal:**")
+        active_nav = st.session_state.get("active_nav", "wizard")
+        nav_items = [
+            ("wizard", "Asistente guiado (3 pasos)", ":material/tune:"),
+            ("guide", "Cómo usarlo (guía visual)", ":material/menu_book:"),
+            ("legal", "Políticas y reglas legales", ":material/gavel:"),
+        ]
+        for nav_key, nav_label, nav_icon in nav_items:
+            btn_type = "primary" if active_nav == nav_key else "secondary"
+            if st.button(nav_label, key=f"sb_nav_{nav_key}", icon=nav_icon, type=btn_type, width="stretch"):
+                st.session_state["active_nav"] = nav_key
+                st.rerun()
+
+        st.divider()
+
+        with st.container(border=True):
+            st.markdown("**:material/info: ¿De qué trata el proyecto?**")
+            st.markdown(
+                "Permite utilizar tus canciones guardadas para importarlas directamente al videojuego "
+                "**Dead as Disco** y tener una sincronización casi perfecta de BPM y tempo, "
+                "para disfrutar al máximo de la canción y del videojuego de Dead as Disco al ritmo de la música."
+            )
+            st.caption("Repositorio público del proyecto:")
+            st.code("git@github.com:victortelles/DaD-BPM-Mapper.git", language="text")
+            st.markdown(
+                "[:material/code: Ver código en GitHub](https://github.com/victortelles/DaD-BPM-Mapper)"
+            )
+
+        with st.container(border=True):
+            st.markdown("**:material/shield: Privacidad de datos:**")
+            st.caption(
+                "Esta aplicación no toma ni recopila datos de los usuarios. "
+                "Lo único que utiliza es el archivo de audio que proporcionas para procesar la sincronización "
+                "en la memoria RAM local, sin almacenarlo en ninguna base de datos ni servidor externo."
+            )
+
+        st.divider()
+
         current_theme = st.session_state.get("theme_mode", "dark")
         is_dark = current_theme == "dark"
-        toggle_label = "Modo claro" if is_dark else "Modo oscuro"
-        toggle_icon = ":material/light_mode:" if is_dark else ":material/dark_mode:"
-        if st.button(toggle_label, key="btn_toggle_theme", icon=toggle_icon, width="stretch"):
+        theme_label = "Modo claro" if is_dark else "Modo oscuro"
+        theme_icon = ":material/light_mode:" if is_dark else ":material/dark_mode:"
+        if st.button(theme_label, key="sb_btn_toggle_theme", icon=theme_icon, width="stretch"):
             st.session_state["theme_mode"] = "light" if is_dark else "dark"
             st.rerun()
 
-        sections = st.session_state.get("bpm_sections") or []
-        if st.session_state.get("audio_bytes") is not None and sections:
-            base_bpm = float(sections[0].bpm)
-            fit_pct = float(st.session_state.get("fit_quality", 0.92)) * 100.0
-            st.markdown(
-                f'<div style="text-align:center;margin-top:0.25rem;">'
-                f'<span class="dad-badge">'
-                f'<span class="material-symbols-rounded" style="font-size:0.95rem;vertical-align:middle;margin-right:4px;">graphic_eq</span>'
-                f"{base_bpm:.1f} BPM · {fit_pct:.0f}% Precisión"
-                f"</span></div>",
-                unsafe_allow_html=True,
-            )
 
-    active_nav = st.session_state.get("active_nav", "wizard")
-    nav_items = [
-        ("wizard", "Asistente guiado (3 pasos)", ":material/tune:"),
-        ("guide", "Cómo usarlo (Guía visual)", ":material/menu_book:"),
-        ("legal", "Políticas y reglas legales", ":material/gavel:"),
-    ]
-    nav_cols = st.columns(3, gap="small")
-    for col, (nav_key, nav_label, nav_icon) in zip(nav_cols, nav_items):
-        with col:
-            btn_type = "primary" if active_nav == nav_key else "secondary"
-            if st.button(nav_label, key=f"nav_btn_{nav_key}", icon=nav_icon, type=btn_type, width="stretch"):
-                st.session_state["active_nav"] = nav_key
-                st.rerun()
+def _render_header() -> None:
+    """Render the studio brand banner header and active song status badge."""
+    if BANNER_PATH.exists():
+        st.image(str(BANNER_PATH), width="stretch")
+    else:
+        col_title, col_actions = st.columns([4.2, 1.8], gap="medium")
+        with col_title:
+            st.title("Dead as Disco · BPM Mapper")
+            st.caption("Asistente guiado en 3 pasos para crear mods musicales sincronizados (`audio.ogg` + `Meta.json`)")
+
+    sections = st.session_state.get("bpm_sections") or []
+    if st.session_state.get("audio_bytes") is not None and sections:
+        base_bpm = float(sections[0].bpm)
+        fit_pct = float(st.session_state.get("fit_quality", 0.92)) * 100.0
+        clean_title = sanitize_song_title(st.session_state.get("song_name") or "Canción cargada")
+        st.markdown(
+            f'<div style="display:flex;justify-content:space-between;align-items:center;margin:0.4rem 0 0.8rem 0;padding:0.4rem 0.8rem;background:var(--card-bg,#0f172a);border:1px solid var(--border-color,#1e293b);border-radius:0.5rem;">'
+            f'<span style="font-size:0.88rem;color:var(--text-color,#f8fafc);font-weight:600;">'
+            f'<span class="material-symbols-rounded" style="font-size:1rem;vertical-align:middle;margin-right:6px;color:#38bdf8;">audiotrack</span>{clean_title}'
+            f"</span>"
+            f'<span class="dad-badge">'
+            f'<span class="material-symbols-rounded" style="font-size:0.95rem;vertical-align:middle;margin-right:4px;">graphic_eq</span>'
+            f"{base_bpm:.1f} BPM · {fit_pct:.0f}% Precisión"
+            f"</span></div>",
+            unsafe_allow_html=True,
+        )
 
 
 def render_header_and_nav() -> None:
     """Backward-compatible wrapper for header and navigation bar rendering."""
+    _render_sidebar()
     _render_header()
 
 
@@ -130,7 +170,7 @@ def _render_stepper_bar(current_step: int, has_audio: bool) -> None:
     step_items = [
         (1, "Paso 1: Subir canción", ":material/upload_file:", False),
         (2, "Paso 2: Escuchar y verificar", ":material/graphic_eq:", not has_audio),
-        (3, "Paso 3: Descargar mod (.ZIP)", ":material/folder_zip:", not has_audio),
+        (3, "Paso 3: Descargar mod", ":material/folder_zip:", not has_audio),
     ]
     step_cols = st.columns(3, gap="small")
     for col, (step_num, step_label, step_icon, is_locked) in zip(step_cols, step_items):
@@ -191,7 +231,7 @@ def render_footer() -> None:
         st.markdown(
             '<div style="text-align:right;"><span class="dad-badge">'
             '<span class="material-symbols-rounded" style="font-size:0.9rem;">verified</span>'
-            "v2.0 · Pagoda Native Schema</span></div>",
+            "Desarrollado por: AHTyler </span></div>",
             unsafe_allow_html=True,
         )
 
@@ -202,7 +242,7 @@ def main() -> None:
         page_title="Dead as Disco · BPM Mapper",
         page_icon=":material/graphic_eq:",
         layout="wide",
-        initial_sidebar_state="collapsed",
+        initial_sidebar_state="expanded",
     )
     init_session_state()
     try:
@@ -210,6 +250,7 @@ def main() -> None:
     except TypeError:
         apply_studio_theme()
 
+    _render_sidebar()
     _render_header()
 
     active_nav = st.session_state.get("active_nav", "wizard")
