@@ -178,9 +178,6 @@ def _render_stepper_bar(current_step: int, has_audio: bool) -> None:
             ):
                 st.session_state["wizard_step"] = step_num
                 st.rerun()
-            ):
-                st.session_state["wizard_step"] = step_num
-                st.rerun()
 
     clean_title = sanitize_song_title(st.session_state.get("song_name") or "")
     if current_step == 2 and clean_title:

@@ -189,7 +189,7 @@ def render_step_export() -> None:
             f"- **Paso A:** Descomprime el archivo `.ZIP` descargado para obtener la carpeta **`{safe_folder}`**.\n"
             "- **Paso B:** Presiona **`Win + R`** en tu teclado, pega la siguiente ruta y pulsa **Enter**:"
         )
-        st.code(r"%localappdata%\Pagoda\Saved\ImportedSongs\", language="text")
+        st.code("%localappdata%\\Pagoda\\Saved\\ImportedSongs\\", language="text")
 
         col_open, col_hint = st.columns([1.6, 2.4], gap="small")
         with col_open:

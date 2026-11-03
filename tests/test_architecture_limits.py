@@ -108,3 +108,13 @@ def test_zero_emojis_in_ui_and_app() -> None:
             if matches:
                 violations.append(f"{path.name}: found emojis {matches}")
     assert not violations, "Emojis found in UI code:\n" + "\n".join(violations)
+
+
+def test_all_python_files_have_valid_syntax() -> None:
+    """All python files in the repository must be valid syntax and compile cleanly."""
+    for file_path in _collect_target_files():
+        if file_path.suffix.lower() == ".py":
+            source = file_path.read_text(encoding="utf-8")
+            tree = ast.parse(source, filename=str(file_path))
+            compile(tree, filename=str(file_path), mode="exec")
+
