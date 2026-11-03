@@ -1,11 +1,16 @@
-"""Unit tests for BeatWarping BPM sections continuity math and validation."""
+"""Unit tests for BeatWarping BPM sections continuity math, validation, and customTempoSections bridges."""
 
 import pytest
 from audio_analysis.bpm_sections import (
+    CustomTempoSection,
     add_marker,
     create_initial_sections,
+    custom_tempo_to_sections,
     delete_marker,
+    native_tempo_to_sections,
     recalculate_beats,
+    sections_to_custom_tempo,
+    sections_to_native_tempo,
     update_marker,
     validate_sections,
 )
@@ -29,13 +34,7 @@ def test_initial_section_creation():
 
 
 def test_section_continuity_calculation():
-    """Scenario: Section continuity calculation.
-    
-    Given transitions at T0=0.0s (B0=60), T1=10.0s (B1=120), T2=20.0s (B2=180):
-    startBeat[0] = 0.0
-    startBeat[1] = 0.0 + (10.0 - 0.0) * (60 / 60) = 10.0
-    startBeat[2] = 10.0 + (20.0 - 10.0) * (120 / 60) = 10.0 + 20.0 = 30.0
-    """
+    """Scenario: Section continuity calculation."""
     raw_sections = [
         BPMSection(startTime=0.0, startBeat=0.0, bpm=60.0),
         BPMSection(startTime=10.0, startBeat=0.0, bpm=120.0),
@@ -58,31 +57,21 @@ def test_section_continuity_calculation():
 
 
 def test_recalculation_after_boundary_shift():
-    """Scenario: Recalculation after boundary shift.
-    
-    When startTime or BPM of section 1 changes:
-    - startBeat of section 0 remains 0.0.
-    - Subsequent startBeats adjust according to BeatWarping formula.
-    """
+    """Scenario: Recalculation after boundary shift."""
     initial_sections = [
         BPMSection(startTime=0.0, startBeat=0.0, bpm=120.0),
         BPMSection(startTime=10.0, startBeat=20.0, bpm=120.0),
         BPMSection(startTime=20.0, startBeat=40.0, bpm=120.0),
     ]
 
-    # Shift section 1 startTime from 10.0 to 15.0
     shifted_time = update_marker(initial_sections, index=1, new_start_time=15.0)
     assert shifted_time[0].startBeat == 0.0
-    # From 0s to 15s at 120 BPM: 15 * (120/60) = 30 beats
     assert pytest.approx(shifted_time[1].startBeat, 1e-4) == 30.0
-    # From 15s to 20s at 120 BPM: 30 + 5 * (120/60) = 40 beats
     assert pytest.approx(shifted_time[2].startBeat, 1e-4) == 40.0
 
-    # Modify section 1 BPM from 120 to 60
     shifted_bpm = update_marker(initial_sections, index=1, new_bpm=60.0)
     assert shifted_bpm[0].startBeat == 0.0
-    assert pytest.approx(shifted_bpm[1].startBeat, 1e-4) == 20.0  # 10s at 120 BPM
-    # Section 2 starts at 20s: 20 + (20 - 10) * (60 / 60) = 30 beats
+    assert pytest.approx(shifted_bpm[1].startBeat, 1e-4) == 20.0
     assert pytest.approx(shifted_bpm[2].startBeat, 1e-4) == 30.0
 
 
@@ -93,13 +82,11 @@ def test_add_new_marker():
         BPMSection(startTime=20.0, startBeat=40.0, bpm=120.0),
     ]
 
-    # Insert at 10.0s with 60 BPM
     updated = add_marker(sections, start_time=10.0, bpm=60.0)
     assert len(updated) == 3
     assert updated[1].startTime == 10.0
     assert pytest.approx(updated[1].startBeat, 1e-4) == 20.0
     assert updated[1].bpm == 60.0
-    # At 20.0s: 20 + 10 * (60/60) = 30.0
     assert pytest.approx(updated[2].startBeat, 1e-4) == 30.0
 
 
@@ -110,12 +97,10 @@ def test_delete_non_root_marker():
         BPMSection(startTime=10.0, startBeat=20.0, bpm=60.0),
         BPMSection(startTime=20.0, startBeat=30.0, bpm=120.0),
     ]
-    # Delete index 1
     updated = delete_marker(sections, index=1)
     assert len(updated) == 2
     assert updated[0].startTime == 0.0
     assert updated[1].startTime == 20.0
-    # Section 1 at 20s now uses section 0's 120 BPM: 20 * (120/60) = 40.0 beats
     assert pytest.approx(updated[1].startBeat, 1e-4) == 40.0
 
 
@@ -131,26 +116,21 @@ def test_prevention_of_root_marker_deletion():
 
 def test_validation_of_invalid_bpm_and_timestamps():
     """Scenario: Validation of invalid BPM values and out-of-order timestamps."""
-    # Negative BPM
     with pytest.raises(ValidationError):
         validate_sections([BPMSection(startTime=0.0, startBeat=0.0, bpm=-120.0)])
 
-    # Zero BPM
     with pytest.raises(ValidationError):
         validate_sections([BPMSection(startTime=0.0, startBeat=0.0, bpm=0.0)])
 
-    # Non-zero root start time
     with pytest.raises(ValidationError):
         validate_sections([BPMSection(startTime=1.5, startBeat=0.0, bpm=120.0)])
 
-    # Negative start time
     with pytest.raises(ValidationError):
         validate_sections([
             BPMSection(startTime=0.0, startBeat=0.0, bpm=120.0),
             BPMSection(startTime=-5.0, startBeat=0.0, bpm=120.0),
         ])
 
-    # Out of order timestamps (T1 <= T0)
     with pytest.raises(ValidationError):
         validate_sections([
             BPMSection(startTime=0.0, startBeat=0.0, bpm=120.0),
@@ -158,10 +138,40 @@ def test_validation_of_invalid_bpm_and_timestamps():
             BPMSection(startTime=8.0, startBeat=0.0, bpm=120.0),
         ])
 
-    # Updating root marker start time away from 0.0
     base = [BPMSection(startTime=0.0, startBeat=0.0, bpm=120.0)]
     with pytest.raises(ValidationError):
         update_marker(base, index=0, new_start_time=2.0)
+
+
+def test_native_tempo_and_custom_tempo_sections_bridge():
+    """Scenario: Round-trip conversion between List[BPMSection] and (tempo, List[CustomTempoSection])."""
+    sections = recalculate_beats([
+        BPMSection(startTime=0.0, startBeat=0.0, bpm=118.0),
+        BPMSection(startTime=12.5, startBeat=0.0, bpm=140.5),
+        BPMSection(startTime=32.0, startBeat=0.0, bpm=160.0),
+    ])
+
+    base_tempo, custom_secs = sections_to_native_tempo(sections)
+    assert base_tempo == 118
+    assert len(custom_secs) == 2
+    assert custom_secs[0] == CustomTempoSection(tempo=140.5, startAbsoluteTime=12.5)
+    assert custom_secs[1] == CustomTempoSection(tempo=160, startAbsoluteTime=32.0)
+
+    roundtrip = native_tempo_to_sections(base_tempo, custom_secs)
+    assert len(roundtrip) == 3
+    for orig, conv in zip(sections, roundtrip):
+        assert pytest.approx(conv.startTime, 1e-4) == orig.startTime
+        assert pytest.approx(conv.startBeat, 1e-4) == orig.startBeat
+        assert pytest.approx(conv.bpm, 1e-4) == orig.bpm
+
+    alias_tempo, alias_custom = sections_to_custom_tempo(sections)
+    assert alias_tempo == base_tempo
+    assert custom_tempo_to_sections(alias_tempo, alias_custom) == roundtrip
+
+    with pytest.raises(ValidationError):
+        sections_to_native_tempo([])
+    with pytest.raises(ValidationError):
+        native_tempo_to_sections(0.0, [])
 
 
 def test_format_seconds_to_min_sec():
@@ -173,4 +183,3 @@ def test_format_seconds_to_min_sec():
     assert format_seconds_to_min_sec(65.432) == "01:05.432"
     assert format_seconds_to_min_sec(125.0) == "02:05.000"
     assert format_seconds_to_min_sec(-10.0) == "00:00.000"
-
