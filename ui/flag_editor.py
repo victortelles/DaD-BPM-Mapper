@@ -40,28 +40,28 @@ def render_offset_controls(
     c1, c2, c3 = st.columns(3)
     with c1:
         new_beat_offset = st.number_input(
-            "Beat Offset (ms)",
+            "Desfase del Primer Pulso · Beat Offset (ms)",
             min_value=0,
             max_value=60000,
             value=max(0, int(round(float(beat_offset_ms)))),
             step=10,
             key="input_beat_offset_ms",
-            help="Desfase del primer pulso en milisegundos (Meta.json: beatOffset).",
+            help="Ajusta en milisegundos cuándo empieza el primer golpe del metrónomo (Meta.json: beatOffset).",
         )
     with c2:
         new_start_offset = st.number_input(
-            "Inicio Canción (s)",
+            "Inicio de Canción (s)",
             min_value=0.0,
             max_value=max_dur,
             value=min(max_dur, max(0.0, float(start_offset_s))),
             step=0.1,
             format="%.2f",
             key="input_start_song_offset_s",
-            help="Segundo de inicio de reproducción (Meta.json: startSongOffset).",
+            help="Segundo donde inicia la partida (Meta.json: startSongOffset).",
         )
     with c3:
         new_end_offset = st.number_input(
-            "Fin Canción (s)",
+            "Fin de Canción (s)",
             min_value=0.0,
             max_value=max_dur,
             value=min(max_dur, max(0.0, float(end_offset_s))),
@@ -71,6 +71,74 @@ def render_offset_controls(
             help="Corte final en segundos (Meta.json: endSongOffset, 0 = sin recorte).",
         )
     return int(new_beat_offset), round(float(new_start_offset), 3), round(float(new_end_offset), 3)
+
+
+def render_quick_peak_sync(
+    bpm_sections: List[BPMSection],
+    audio_duration: float,
+    y: Optional[np.ndarray] = None,
+    sr: Optional[int] = None,
+) -> List[BPMSection]:
+    """Render a non-nested card for quick peak-snapped flag insertion and auto-BPM calculation."""
+    current_sections = list(bpm_sections)
+    max_dur = max(1.0, float(audio_duration))
+
+    with st.container(border=True):
+        st.markdown("**⚡ Sincronizador Rápido en Pico (Auto-BPM)**")
+        st.caption(
+            "Opcional: Si la canción cambia de velocidad en un segundo específico, escríbelo aquí "
+            "(puedes usar el botón 📋 Copiar Tiempo del reproductor) y el sistema calculará el nuevo BPM en ese pico."
+        )
+        qc_col1, qc_col2, qc_col3 = st.columns([2.0, 1.3, 1.3])
+        with qc_col1:
+            qc_time = st.number_input(
+                "Segundo del pico o cambio de ritmo",
+                min_value=0.0,
+                max_value=max_dur,
+                value=0.0,
+                step=0.1,
+                format="%.3f",
+                key="qc_input_time",
+            )
+        with qc_col2:
+            qc_manual_bpm = st.number_input(
+                "BPM (0 = Calcular Auto)",
+                min_value=0.0,
+                max_value=400.0,
+                value=0.0,
+                step=1.0,
+                format="%.1f",
+                key="qc_manual_bpm",
+            )
+        with qc_col3:
+            st.write("")
+            if st.button(
+                "Fijar Bandera en Pico",
+                key="btn_qc_apply",
+                icon=":material/auto_fix_high:",
+                use_container_width=True,
+                type="primary",
+            ):
+                try:
+                    if qc_manual_bpm <= 0.0 and y is not None and sr is not None:
+                        snapped_t, est_bpm = estimate_local_bpm_at_time(y, sr, qc_time)
+                    else:
+                        snapped_t = round(float(qc_time), 3)
+                        est_bpm = float(qc_manual_bpm) if qc_manual_bpm > 0.0 else 120.0
+
+                    if qc_time <= 0.2:
+                        updated = update_marker(current_sections, index=0, new_bpm=est_bpm)
+                    else:
+                        updated = add_marker(current_sections, start_time=snapped_t, bpm=est_bpm)
+
+                    if qc_manual_bpm <= 0.0 and y is not None and sr is not None:
+                        updated = recalculate_all_bpms_from_peaks(updated, y, sr)
+                    st.success(f"Bandera sincronizada en {snapped_t:.3f}s ({est_bpm:.1f} BPM).")
+                    return updated
+                except ValidationError as err:
+                    st.error(f"No se pudo fijar la bandera: {err}")
+
+    return current_sections
 
 
 def render_flag_editor(
@@ -83,77 +151,15 @@ def render_flag_editor(
     current_sections = list(bpm_sections)
     max_dur = max(1.0, float(audio_duration))
 
-    # 1. Master 1-Click Peak Recalculation Bar
-    if y is not None and sr is not None and current_sections:
-        col_info, col_btn = st.columns([2.6, 1.4])
-        with col_info:
-            st.caption("Sincronización automática: imanta cada bandera al pico acústico y calcula su BPM real.")
-        with col_btn:
-            if st.button(
-                "Recalcular BPMs desde Picos",
-                key="btn_recalc_all_peaks",
-                icon=":material/auto_fix_high:",
-                use_container_width=True,
-                type="primary",
-            ):
-                updated = recalculate_all_bpms_from_peaks(current_sections, y, sr)
-                st.success(f"{len(updated)} secciones sincronizadas con los picos acústicos.")
-                return updated
+    # 1. Quick Peak Synchronizer sub-card (no nested st.expander)
+    after_qc = render_quick_peak_sync(current_sections, max_dur, y=y, sr=sr)
+    if after_qc != current_sections:
+        return after_qc
 
-    # 2. Compact Flag Placement & Management Row
-    tab_single, tab_batch, tab_manage = st.tabs(
-        ["+ Bandera en Pico", "+ Múltiples Banderas", "Calibrar / Eliminar"]
+    # 2. Batch & Management Tabs
+    tab_batch, tab_manage = st.tabs(
+        ["➕ Agregar Varias Banderas por Segundo", "🔧 Recalcular Picos / Eliminar Bandera"]
     )
-
-    with tab_single:
-        c1, c2, c3 = st.columns([2.0, 1.3, 1.3])
-        with c1:
-            new_time = st.number_input(
-                "Segundo del cambio de ritmo",
-                min_value=0.01,
-                max_value=max_dur,
-                value=min(10.0, max_dur / 2.0),
-                step=0.1,
-                format="%.3f",
-                key="new_marker_time",
-            )
-        with c2:
-            manual_bpm = st.number_input(
-                "BPM (0 = Auto por Picos)",
-                min_value=0.0,
-                max_value=400.0,
-                value=0.0,
-                step=1.0,
-                format="%.1f",
-                key="manual_marker_bpm",
-            )
-        with c3:
-            st.write("")
-            if st.button(
-                "Colocar en Pico",
-                key="btn_add_flag_peak",
-                icon=":material/pin_drop:",
-                use_container_width=True,
-                type="primary",
-            ):
-                try:
-                    if manual_bpm <= 0.0:
-                        if y is not None and sr is not None:
-                            snapped_t, est_bpm = estimate_local_bpm_at_time(y, sr, new_time)
-                        else:
-                            snapped_t, est_bpm = new_time, 120.0
-                        intermediate = add_marker(current_sections, start_time=snapped_t, bpm=est_bpm)
-                        updated = (
-                            recalculate_all_bpms_from_peaks(intermediate, y, sr)
-                            if (y is not None and sr is not None)
-                            else intermediate
-                        )
-                    else:
-                        updated = add_marker(current_sections, start_time=new_time, bpm=manual_bpm)
-                    st.success(f"Bandera agregada ({format_seconds_to_min_sec(new_time)}).")
-                    return updated
-                except ValidationError as exc:
-                    st.error(f"No se pudo agregar: {exc}")
 
     with tab_batch:
         cb1, cb2 = st.columns([3.0, 1.2])
@@ -197,34 +203,45 @@ def render_flag_editor(
         cm1, cm2 = st.columns(2)
         with cm1:
             if y is not None and sr is not None and current_sections:
-                if st.button("Calibrar Base 0.0s (Intro)", key="btn_calib_root", icon=":material/speed:", use_container_width=True):
-                    _, root_bpm = estimate_local_bpm_at_time(y, sr, 0.0, duration=10.0, snap_transient=False)
-                    updated = update_marker(current_sections, index=0, new_bpm=root_bpm)
-                    st.success(f"Base 0.0s ajustada a {root_bpm:.1f} BPM.")
+                if st.button(
+                    "Recalcular Todos los BPMs desde Picos",
+                    key="btn_recalc_all_peaks",
+                    icon=":material/auto_fix_high:",
+                    use_container_width=True,
+                ):
+                    updated = recalculate_all_bpms_from_peaks(current_sections, y, sr)
+                    st.success(f"{len(updated)} secciones sincronizadas con los picos acústicos.")
                     return updated
         with cm2:
             if len(current_sections) > 1:
                 del_opts = {
-                    i: f"#{i} · {format_seconds_to_min_sec(s.startTime)} ({s.bpm:.1f} BPM)"
+                    i: f"#{i + 1} · {format_seconds_to_min_sec(s.startTime)} ({s.bpm:.1f} BPM)"
                     for i, s in enumerate(current_sections)
                     if i > 0
                 }
-                sel_del = st.selectbox("Eliminar bandera", options=list(del_opts.keys()), format_func=lambda idx: del_opts[idx], key="select_flag_to_delete", label_visibility="collapsed")
-                if st.button("Eliminar Seleccionada", key="btn_del_flag", icon=":material/delete:", use_container_width=True):
+                sel_del = st.selectbox(
+                    "Eliminar bandera",
+                    options=list(del_opts.keys()),
+                    format_func=lambda idx: del_opts[idx],
+                    key="select_flag_to_delete",
+                    label_visibility="collapsed",
+                )
+                if st.button("Eliminar Bandera Seleccionada", key="btn_del_flag", icon=":material/delete:", use_container_width=True):
                     return delete_marker(current_sections, sel_del)
             else:
-                st.caption("Solo existe la sección base (0.0s).")
+                st.caption("Solo existe la bandera base inicial (0:00).")
 
     # 3. Editable Sections Table
+    st.markdown("**📋 Tabla de Banderas de Tempo (puedes editar el Tiempo o el BPM haciendo doble clic):**")
     df = pd.DataFrame(
         [
             {
-                "Sección #": i,
+                "Bandera #": i + 1,
                 "Tiempo (s)": round(float(s.startTime), 3),
                 "Min:Seg": format_seconds_to_min_sec(s.startTime),
                 "Beat Inicial": round(float(s.startBeat), 3),
                 "BPM": round(float(s.bpm), 2),
-                "Base 0.0s": (i == 0),
+                "Base Inicial": (i == 0),
             }
             for i, s in enumerate(current_sections)
         ]
@@ -233,14 +250,14 @@ def render_flag_editor(
     edited_df = st.data_editor(
         df,
         column_config={
-            "Sección #": st.column_config.NumberColumn("Sección #", disabled=True),
+            "Bandera #": st.column_config.NumberColumn("Bandera #", disabled=True),
             "Tiempo (s)": st.column_config.NumberColumn("Tiempo (s)", min_value=0.0, max_value=max_dur, step=0.01),
             "Min:Seg": st.column_config.TextColumn("Min:Seg", disabled=True),
             "Beat Inicial": st.column_config.NumberColumn("Beat Inicial", disabled=True),
             "BPM": st.column_config.NumberColumn("BPM", min_value=0.0, max_value=500.0, step=0.5),
-            "Base 0.0s": st.column_config.CheckboxColumn("Base 0.0s", disabled=True),
+            "Base Inicial": st.column_config.CheckboxColumn("Base Inicial", disabled=True),
         },
-        disabled=["Sección #", "Min:Seg", "Beat Inicial", "Base 0.0s"],
+        disabled=["Bandera #", "Min:Seg", "Beat Inicial", "Base Inicial"],
         use_container_width=True,
         hide_index=True,
         key="bpm_sections_editor",
@@ -259,7 +276,7 @@ def render_flag_editor(
                 candidates.append(BPMSection(startTime=row_t, startBeat=0.0, bpm=row_bpm))
 
             if abs(candidates[0].startTime) > 1e-6:
-                st.error("La sección #0 debe permanecer en 0.0s.")
+                st.error("La Bandera #1 debe permanecer en el segundo 0.0s.")
                 return current_sections
 
             validate_sections(candidates)

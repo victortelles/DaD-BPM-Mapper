@@ -1,4 +1,4 @@
-"""Dead as Disco · BPM Mapper & Native Mod Packager (v2 S.O.L.I.D Orchestrator)."""
+"""Dead as Disco · BPM Mapper & Native Mod Packager (v2 Guided Wizard Orchestrator)."""
 
 from pathlib import Path
 from typing import Any, Dict
@@ -15,6 +15,7 @@ from ui.theme import apply_studio_theme, render_step_indicator
 LOGO_PATH = Path(__file__).resolve().parent / "Logo.PNG"
 
 SESSION_DEFAULTS: Dict[str, Any] = {
+    "theme_mode": "dark",
     "wizard_step": 1,
     "active_nav": "wizard",
     "audio_bytes": None,
@@ -28,6 +29,7 @@ SESSION_DEFAULTS: Dict[str, Any] = {
     "start_song_offset": 0.0,
     "end_song_offset": 0.0,
     "fit_quality": 0.92,
+    "player_seek_time": 0.0,
     "song_name": "",
     "performed_by": "",
     "written_by": "",
@@ -36,9 +38,17 @@ SESSION_DEFAULTS: Dict[str, Any] = {
     "last_exported_song": None,
 }
 
+STEP_CONTEXT_BANNERS: Dict[int, str] = {
+    1: "👉 **Paso actual (1 de 3):** Sube tu archivo de música (`.mp3`, `.wav`, `.ogg`, `.flac`) y el sistema calculará el ritmo automáticamente.",
+    2: "👉 **Paso actual (2 de 3):** Pulsa **▶ Reproducir** con el **🔊 Metrónomo** activado para comprobar que los pulsos van al ritmo de la canción.",
+    3: "👉 **Paso actual (3 de 3):** Confirma el título, genera el archivo **.ZIP** e instálalo en la carpeta `ImportedSongs` del juego.",
+}
+
 
 def init_session_state() -> None:
     """Initialize all Streamlit session state keys with safe defaults."""
+    if "theme_mode" not in st.session_state:
+        st.session_state["theme_mode"] = "dark"
     for key, default_val in SESSION_DEFAULTS.items():
         if key not in st.session_state:
             st.session_state[key] = list(default_val) if isinstance(default_val, list) else default_val
@@ -47,25 +57,42 @@ def init_session_state() -> None:
 def reset_analysis() -> None:
     """Reset loaded audio, DSP analysis state, and cached export artifacts."""
     for key, default_val in SESSION_DEFAULTS.items():
-        if key not in ("active_nav",):
+        if key not in ("active_nav", "theme_mode"):
             st.session_state[key] = list(default_val) if isinstance(default_val, list) else default_val
 
 
-def render_header_and_nav() -> None:
-    """Render the studio brand header and top-level view navigation bar."""
-    col_logo, col_title = st.columns([0.8, 6.2], gap="medium")
+def _render_header() -> None:
+    """Render the studio brand header, active song badge, theme toggle, and top navigation bar."""
+    col_logo, col_title, col_actions = st.columns([0.7, 4.3, 2.0], gap="medium")
     with col_logo:
         if LOGO_PATH.exists():
             st.image(str(LOGO_PATH), use_container_width=True)
     with col_title:
         st.title("Dead as Disco · BPM Mapper")
-        st.caption("Sincronizador automático de ritmo y empaquetador nativo Meta.json + audio.ogg")
+        st.caption("Asistente guiado en 3 pasos para crear mods musicales sincronizados (`audio.ogg` + `Meta.json`)")
+    with col_actions:
+        current_theme = st.session_state.get("theme_mode", "dark")
+        toggle_label = "☀️ Modo Claro" if current_theme == "dark" else "🌙 Modo Oscuro"
+        if st.button(toggle_label, key="btn_toggle_theme", use_container_width=True):
+            st.session_state["theme_mode"] = "light" if current_theme == "dark" else "dark"
+            st.rerun()
+
+        sections = st.session_state.get("bpm_sections") or []
+        if st.session_state.get("audio_bytes") is not None and sections:
+            base_bpm = float(sections[0].bpm)
+            fit_pct = float(st.session_state.get("fit_quality", 0.92)) * 100.0
+            st.markdown(
+                f'<div style="text-align:center;margin-top:0.25rem;">'
+                f'<span class="dad-badge">🎵 {base_bpm:.1f} BPM · {fit_pct:.0f}% Precisión</span>'
+                f"</div>",
+                unsafe_allow_html=True,
+            )
 
     active_nav = st.session_state.get("active_nav", "wizard")
     nav_items = [
-        ("wizard", "Asistente (Paso a Paso)"),
-        ("guide", "Cómo Usarlo (Guía Visual)"),
-        ("legal", "Políticas y Reglas Legales"),
+        ("wizard", "🧭 Asistente Guiado (3 Pasos)"),
+        ("guide", "📖 Cómo Usarlo (Guía Visual)"),
+        ("legal", "⚖️ Políticas y Reglas Legales"),
     ]
     nav_cols = st.columns(3, gap="small")
     for col, (nav_key, nav_label) in zip(nav_cols, nav_items):
@@ -77,20 +104,22 @@ def render_header_and_nav() -> None:
     st.markdown("---")
 
 
-def render_wizard_workspace() -> None:
-    """Render the 3-step Wizard selector and dispatch to the active step view."""
-    has_audio = st.session_state.get("audio_bytes") is not None and st.session_state.get("y") is not None
-    current_step = int(st.session_state.get("wizard_step", 1))
-    if not has_audio and current_step > 1:
-        current_step = 1
-        st.session_state["wizard_step"] = 1
+def render_header_and_nav() -> None:
+    """Backward-compatible wrapper for header and navigation bar rendering."""
+    _render_header()
 
-    render_step_indicator(current_step=current_step, unlocked_step=3 if has_audio else 1)
+
+def _render_stepper_bar(current_step: int, has_audio: bool) -> None:
+    """Render the 3-step guided progress bar and contextual 1-line instruction banner."""
+    try:
+        render_step_indicator(current_step=current_step, unlocked_step=3 if has_audio else 1)
+    except TypeError:
+        render_step_indicator(current_step=current_step)
 
     step_items = [
-        (1, "1. Subir Audio", False),
-        (2, "2. Sincronizar Ritmo", not has_audio),
-        (3, "3. Exportar Mod", not has_audio),
+        (1, "1️⃣ Subir Canción", False),
+        (2, "2️⃣ Escuchar y Verificar", not has_audio),
+        (3, "3️⃣ Descargar Mod (.ZIP)", not has_audio),
     ]
     step_cols = st.columns(3, gap="small")
     for col, (step_num, step_label, is_locked) in zip(step_cols, step_items):
@@ -106,11 +135,21 @@ def render_wizard_workspace() -> None:
                 st.session_state["wizard_step"] = step_num
                 st.rerun()
 
-    if not has_audio:
-        st.caption(
-            "🔒 **Paso 2** y **Paso 3** se desbloquean automáticamente al validar un archivo "
-            "`.mp3`, `.wav`, `.ogg` o `.flac` en el **Paso 1**."
-        )
+    banner_text = STEP_CONTEXT_BANNERS.get(current_step, STEP_CONTEXT_BANNERS[1])
+    if not has_audio and current_step == 1:
+        banner_text += " *(Los Pasos 2 y 3 se desbloquean al subir tu canción).* "
+    st.info(banner_text)
+
+
+def render_wizard_workspace() -> None:
+    """Render the 3-step Wizard selector and dispatch to the active step view."""
+    has_audio = st.session_state.get("audio_bytes") is not None and st.session_state.get("y") is not None
+    current_step = int(st.session_state.get("wizard_step", 1))
+    if not has_audio and current_step > 1:
+        current_step = 1
+        st.session_state["wizard_step"] = 1
+
+    _render_stepper_bar(current_step=current_step, has_audio=has_audio)
 
     if current_step == 1:
         render_step_upload()
@@ -145,8 +184,12 @@ def main() -> None:
         initial_sidebar_state="collapsed",
     )
     init_session_state()
-    apply_studio_theme()
-    render_header_and_nav()
+    try:
+        apply_studio_theme(st.session_state["theme_mode"])
+    except TypeError:
+        apply_studio_theme()
+
+    _render_header()
 
     active_nav = st.session_state.get("active_nav", "wizard")
     if active_nav == "guide":

@@ -1,4 +1,4 @@
-"""Wizard Step 1 view: Secure audio upload, automatic rhythm analysis, and Meta.json import."""
+"""Wizard Step 1 view: Guided audio upload, automatic rhythm analysis, and Meta.json import."""
 
 import json
 from pathlib import Path
@@ -29,7 +29,7 @@ def _clear_audio_state() -> None:
         "audio_bytes": None, "filename": None, "audio_md5": "", "y": None, "sr": None,
         "bpm_sections": [], "initial_sections": [], "beat_offset_ms": 0,
         "start_song_offset": 0.0, "end_song_offset": 0.0, "fit_quality": 0.92,
-        "export_result": None, "ogg_bytes": None,
+        "player_seek_time": 0.0, "export_result": None, "ogg_bytes": None,
     }
     for key, val in defaults.items():
         st.session_state[key] = val
@@ -51,7 +51,7 @@ def _apply_imported_meta(meta: SongMetadata) -> list:
 
 def _render_import_expander() -> None:
     """Render compact optional expander to load existing Meta.json or ImportedSongs entries."""
-    with st.expander("Importar Meta.json existente o desde ImportedSongs (Opcional)", expanded=False):
+    with st.expander("📂 Opcional: Importar Meta.json existente o mod desde ImportedSongs", expanded=False):
         col_json, col_game = st.columns(2)
         with col_json:
             uploaded_json = st.file_uploader("Subir archivo Meta.json", type=["json"], key="json_uploader")
@@ -85,7 +85,7 @@ def _render_import_expander() -> None:
                             st.session_state["audio_md5"] = compute_audio_md5(ogg_bytes)
                             st.session_state["y"] = y_loaded
                             st.session_state["sr"] = sr_loaded
-                        st.success(f"Canción '{meta.songName}' cargada desde ImportedSongs.")
+                        st.session_state["wizard_step"] = 2
                         st.rerun()
                     except Exception as exc:
                         st.error(f"Error al cargar desde ImportedSongs: {exc}")
@@ -94,18 +94,25 @@ def _render_import_expander() -> None:
 
 
 def render_step_upload() -> None:
-    """Render Step 1 of the Wizard: upload firewall, automatic DSP analysis, and summary metrics."""
+    """Render Step 1 of the Wizard: guided upload box, automatic DSP analysis, and direct flow to Step 2."""
     render_micro_card(
-        "Paso 1 · Subí tu pista de audio",
-        "Formatos permitidos: MP3, WAV, OGG, FLAC. Tu archivo original no se modifica.",
+        "Paso 1 de 3 — Sube tu archivo de música",
+        "Tu archivo original nunca se modifica. Todo se procesa de forma segura en memoria.",
         "MP3 · WAV · OGG · FLAC",
     )
 
-    uploaded_file = st.file_uploader(
-        "Seleccioná tu pista de audio (.mp3, .wav, .ogg, .flac)",
-        type=["mp3", "wav", "ogg", "flac"],
-        key="file_uploader",
-    )
+    with st.container(border=True):
+        st.markdown(
+            "**¿Cómo funciona este primer paso?**\n"
+            "1. **Elige tu canción** (`.mp3`, `.wav`, `.ogg`, `.flac`).\n"
+            "2. **El sistema analiza automáticamente** el BPM, el primer pulso y los cambios de ritmo.\n"
+            "3. **Pasa al Paso 2** para escuchar el resultado con el metrónomo."
+        )
+        uploaded_file = st.file_uploader(
+            "Arrastra o selecciona tu archivo de música aquí (.mp3, .wav, .ogg, .flac)",
+            type=["mp3", "wav", "ogg", "flac"],
+            key="file_uploader",
+        )
 
     if uploaded_file is not None:
         is_new_file = (
@@ -123,7 +130,7 @@ def render_step_upload() -> None:
                 _render_import_expander()
                 return
 
-            with st.spinner("Validando firma binaria y detectando tempo y primer pulso..."):
+            with st.spinner("🎵 Analizando ritmo, BPM y primer pulso automáticamente..."):
                 try:
                     audio_md5 = compute_audio_md5(raw_bytes)
                     y, sr = load_audio(raw_bytes)
@@ -136,9 +143,12 @@ def render_step_upload() -> None:
                         "audio_bytes": raw_bytes, "filename": uploaded_file.name, "audio_md5": audio_md5,
                         "y": y, "sr": sr, "bpm_sections": sections, "initial_sections": list(sections),
                         "beat_offset_ms": offset_ms, "start_song_offset": 0.0, "end_song_offset": 0.0,
-                        "fit_quality": fit_qual, "song_name": Path(uploaded_file.name).stem,
+                        "fit_quality": fit_qual, "player_seek_time": 0.0,
+                        "song_name": Path(uploaded_file.name).stem,
                         "export_result": None, "ogg_bytes": None,
+                        "wizard_step": 2,
                     })
+                    st.rerun()
                 except (InsufficientAudioSignalError, AudioProcessingError) as dsp_err:
                     _clear_audio_state()
                     st.error(f"No se pudo analizar la pista: {dsp_err}")
@@ -150,27 +160,29 @@ def render_step_upload() -> None:
                     _render_import_expander()
                     return
 
-    _render_import_expander()
-
     if st.session_state.get("y") is not None and st.session_state.get("sr") is not None:
         y, sr = st.session_state["y"], st.session_state["sr"]
         sections = st.session_state.get("bpm_sections") or []
         duration = len(y) / float(sr)
         base_bpm = sections[0].bpm if sections else 120.0
         offset_ms = int(st.session_state.get("beat_offset_ms", 0))
-        fit_pct = float(st.session_state.get("fit_quality", 0.92)) * 100.0
+        loaded_name = st.session_state.get("filename") or "Canción cargada"
 
-        m1, m2, m3, m4 = st.columns(4)
-        m1.metric("Duración", f"{duration:.2f} s")
-        m2.metric("Tempo Base", f"{base_bpm:.1f} BPM")
-        m3.metric("Beat Offset", f"{offset_ms} ms")
-        m4.metric("Precisión", f"{fit_pct:.0f}%")
+        with st.container(border=True):
+            st.success(f"✅ **Canción lista:** `{loaded_name}` analizada correctamente.")
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("Tempo Detectado", f"{base_bpm:.1f} BPM")
+            m2.metric("Secciones de Ritmo", f"{len(sections)}")
+            m3.metric("Primer Pulso (Offset)", f"{offset_ms} ms")
+            m4.metric("Duración", f"{duration:.1f} s")
 
-        if st.button(
-            "Continuar al Paso 2: Sincronizar Ritmo →",
-            key="btn_step1_to_step2",
-            type="primary",
-            use_container_width=True,
-        ):
-            st.session_state["wizard_step"] = 2
-            st.rerun()
+            if st.button(
+                "▶️ Ir al Paso 2: Escuchar y Verificar Sincronización →",
+                key="btn_step1_to_step2",
+                type="primary",
+                use_container_width=True,
+            ):
+                st.session_state["wizard_step"] = 2
+                st.rerun()
+
+    _render_import_expander()

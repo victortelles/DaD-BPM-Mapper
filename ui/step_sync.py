@@ -1,36 +1,78 @@
-"""Wizard Step 2 view: Live waveform player, metronome, peak auto-sync, and BeatWarping editor."""
+"""Wizard Step 2 view: Guided metronome verification, tempo section strip, and optional manual editor."""
 
 from pathlib import Path
+from typing import List
 import streamlit as st
 
 from audio_analysis.beat_detection import (
-    estimate_local_bpm_at_time,
-    recalculate_all_bpms_from_peaks,
+    compute_fit_quality,
+    detect_beat_offset_ms,
+    detect_tempo_sections,
 )
-from audio_analysis.bpm_sections import add_marker, update_marker
-from audio_analysis.exceptions import ValidationError
-from ui.flag_editor import (
-    format_seconds_to_min_sec,
-    render_flag_editor,
-    render_offset_controls,
-)
+from models.song_metadata import BPMSection
+from ui.flag_editor import render_flag_editor, render_offset_controls
 from ui.live_waveform_player import render_live_waveform_player
 from ui.theme import render_micro_card
 
 
+def _format_chip_time(seconds: float) -> str:
+    """Format seconds as M:SS (e.g. 0:00, 0:20, 1:45)."""
+    sec = max(0, int(round(float(seconds))))
+    return f"{sec // 60}:{sec % 60:02d}"
+
+
+def _section_role_label(index: int, bpm: float, base_bpm: float) -> str:
+    """Return a concise Spanish role tag for a tempo section chip."""
+    if index == 0:
+        return "Base"
+    if bpm > base_bpm * 1.05:
+        return "Rápido"
+    if bpm < base_bpm * 0.95:
+        return "Lento"
+    return "Cambio"
+
+
+def _render_detected_sections_strip(sections: List[BPMSection]) -> None:
+    """Render interactive tempo section chips and a 1-line explanation of the flag count."""
+    if not sections:
+        return
+
+    base_bpm = float(sections[0].bpm)
+    st.markdown("**🚩 Secciones de Ritmo Detectadas (haz clic en una bandera para saltar a ese segundo):**")
+
+    cols_per_row = min(4, max(1, len(sections)))
+    for row_start in range(0, len(sections), cols_per_row):
+        row_Slice = sections[row_start : row_start + cols_per_row]
+        chip_cols = st.columns(len(row_Slice), gap="small")
+        for col, (idx, sec) in zip(chip_cols, enumerate(row_Slice, start=row_start)):
+            role = _section_role_label(idx, float(sec.bpm), base_bpm)
+            chip_label = f"🚩 #{idx + 1} · {_format_chip_time(sec.startTime)} → {sec.bpm:.1f} BPM ({role})"
+            with col:
+                if st.button(chip_label, key=f"btn_chip_sec_{idx}", use_container_width=True):
+                    st.session_state["player_seek_time"] = float(sec.startTime)
+                    st.rerun()
+
+    if len(sections) == 1:
+        st.caption(
+            "ℹ️ **Ritmo constante detectado (1 bandera):** Esta canción mantiene un pulso estable de principio a fin. "
+            "Si tiene un cambio de ritmo que quieras marcar a mano, usa el ajuste manual opcional abajo."
+        )
+    else:
+        st.caption(
+            f"ℹ️ **Múltiples ritmos detectados ({len(sections)} banderas):** Se detectaron cambios de velocidad "
+            "o intensidad automáticamente a lo largo de la canción."
+        )
+
+
 def render_step_sync() -> None:
-    """Render Step 2 of the Wizard: interactive waveform player, peak sync, and section editor."""
+    """Render Step 2 of the Wizard: guided metronome check, primary CTA bar, and optional manual editor."""
     if st.session_state.get("y") is None or st.session_state.get("audio_bytes") is None:
         render_micro_card(
-            "Paso 2 · Verificá y Ajustá el Ritmo",
-            "Primero subí una pista de audio válida en el Paso 1 para habilitar el sincronizador.",
+            "Paso 2 de 3 — Escucha tu canción con el metrónomo",
+            "Primero sube una pista de audio válida en el Paso 1 para habilitar el reproductor.",
             "Bloqueado",
         )
-        if st.button(
-            "← Ir al Paso 1: Subir Audio",
-            key="btn_locked_sync_to_step1",
-            type="primary",
-        ):
+        if st.button("← Ir al Paso 1: Subir Canción", key="btn_locked_sync_to_step1", type="primary"):
             st.session_state["wizard_step"] = 1
             st.rerun()
         return
@@ -41,50 +83,23 @@ def render_step_sync() -> None:
     sections = st.session_state.get("bpm_sections") or []
     filename = st.session_state.get("filename") or "track.mp3"
 
+    # 1. Guided Instruction Banner at the top of Step 2
     render_micro_card(
-        "Paso 2 · Verificá y Ajustá el Ritmo",
-        "Escuchá con el metrónomo o colocá banderas en los picos; el BPM se calcula solo.",
-        f"{len(sections)} sección(es)",
+        "Paso 2 de 3 — Escucha tu canción con el metrónomo",
+        "Verifica en segundos si el ritmo automático coincide con tu canción.",
+        f"{len(sections)} bandera(s)",
     )
-
-    # Top bar: Flag selector + Reset detection button
-    flag_nav_options = [
-        (
-            i,
-            f"Bandera #{i} · {format_seconds_to_min_sec(s.startTime)} ({s.startTime:.3f}s) · {s.bpm:.1f} BPM",
+    with st.container(border=True):
+        st.markdown(
+            "1. Pulsa **▶ Reproducir** y marca **🔊 Metrónomo** para comprobar que los pulsos van al ritmo de la música.\n"
+            "2. Si suena bien sincronizado, pulsa **\"Continuar al Paso 3: Descargar Mod\"** abajo. "
+            "*(Solo abre el panel manual si notas algún desfase).*"
         )
-        for i, s in enumerate(sections)
-    ]
 
-    selected_nav_idx = 0
-    if flag_nav_options:
-        col_nav, col_reset = st.columns([3.2, 1.2])
-        with col_nav:
-            selected_nav_idx = st.selectbox(
-                "Sincronizar Línea de Tiempo con Bandera",
-                options=[idx for idx, _ in flag_nav_options],
-                format_func=lambda idx: dict(flag_nav_options)[idx],
-                key="timeline_flag_sync_select",
-            )
-        with col_reset:
-            st.write("")
-            if st.button(
-                "Restablecer Detección",
-                key="btn_reset_detection",
-                icon=":material/restart_alt:",
-                use_container_width=True,
-            ):
-                initial = st.session_state.get("initial_sections") or sections
-                st.session_state["bpm_sections"] = list(initial)
-                st.success("Banderas restablecidas a la detección original.")
-                st.rerun()
-
-    seek_target = 0.0
-    if isinstance(selected_nav_idx, int) and 0 <= selected_nav_idx < len(sections):
-        seek_target = float(sections[selected_nav_idx].startTime)
-
+    # 2. Live Waveform Player
     ext = Path(filename).suffix.lower().lstrip(".") or "mp3"
     mime = f"audio/{ext}" if ext in ("mp3", "ogg", "wav", "flac") else "audio/mp3"
+    seek_target = float(st.session_state.get("player_seek_time", 0.0))
 
     render_live_waveform_player(
         audio_bytes=st.session_state["audio_bytes"],
@@ -96,77 +111,73 @@ def render_step_sync() -> None:
         height=420,
         seek_time=seek_target,
         beat_offset_ms=int(st.session_state.get("beat_offset_ms", 0)),
+        theme_mode=st.session_state.get("theme_mode", "dark"),
     )
 
-    # Compact Peak Quick-Synchronizer (Auto-BPM)
-    st.markdown("##### Sincronizador Rápido en Pico (Auto-BPM)")
-    qc_col1, qc_col2 = st.columns([2.6, 1.4])
-    with qc_col1:
-        qc_time = st.number_input(
-            "Segundo del pico o cambio de ritmo",
-            min_value=0.0,
-            max_value=float(duration),
-            value=0.0,
-            step=0.1,
-            format="%.3f",
-            key="qc_input_time",
-        )
-    with qc_col2:
-        st.write("")
-        if st.button(
-            "Fijar Bandera en Pico",
-            key="btn_qc_apply",
-            icon=":material/auto_fix_high:",
-            use_container_width=True,
-            type="primary",
-        ):
-            snapped_t, est_bpm = estimate_local_bpm_at_time(y, sr, qc_time)
-            try:
-                if qc_time <= 0.2:
-                    updated = update_marker(sections, index=0, new_bpm=est_bpm)
-                else:
-                    updated = add_marker(sections, start_time=snapped_t, bpm=est_bpm)
-                recalced = recalculate_all_bpms_from_peaks(updated, y, sr)
-                st.session_state["bpm_sections"] = recalced
-                st.success(f"Bandera sincronizada en {snapped_t:.3f}s ({est_bpm:.1f} BPM).")
-                st.rerun()
-            except ValidationError as err:
-                st.error(f"No se pudo fijar la bandera: {err}")
+    # 3. Detected Tempo Sections Strip (Visual Summary)
+    _render_detected_sections_strip(sections)
 
-    # Native Pagoda Offset Controls (beatOffset in ms, startSongOffset & endSongOffset in s)
-    new_beat_offset, new_start_offset, new_end_offset = render_offset_controls(
-        beat_offset_ms=int(st.session_state.get("beat_offset_ms", 0)),
-        start_offset_s=float(st.session_state.get("start_song_offset", 0.0)),
-        end_offset_s=float(st.session_state.get("end_song_offset", 0.0)),
-        audio_duration=duration,
-    )
-    st.session_state["beat_offset_ms"] = new_beat_offset
-    st.session_state["start_song_offset"] = new_start_offset
-    st.session_state["end_song_offset"] = new_end_offset
-
-    # Interactive Section CRUD & Data Editor
-    updated_sections = render_flag_editor(
-        st.session_state["bpm_sections"],
-        audio_duration=duration,
-        y=y,
-        sr=sr,
-    )
-    if updated_sections != st.session_state["bpm_sections"]:
-        st.session_state["bpm_sections"] = updated_sections
-        st.rerun()
-
+    # 4. Primary Navigation CTA Bar (IMMEDIATELY visible without scrolling past manual forms)
     st.markdown("---")
-    nav_back, nav_next = st.columns([1.2, 2.0])
+    nav_back, nav_next = st.columns([1.2, 2.2], gap="medium")
     with nav_back:
-        if st.button("← Volver al Paso 1", key="btn_step2_back_step1", use_container_width=True):
+        if st.button("← Paso 1: Cambiar canción", key="btn_step2_back_step1", use_container_width=True):
             st.session_state["wizard_step"] = 1
             st.rerun()
     with nav_next:
         if st.button(
-            "Continuar al Paso 3: Exportar Mod →",
+            "✅ Suena bien — Continuar al Paso 3: Descargar Mod (.ZIP) →",
             key="btn_step2_to_step3",
             type="primary",
             use_container_width=True,
         ):
             st.session_state["wizard_step"] = 3
+            st.rerun()
+
+    # 5. Optional Collapsed Expander for Manual Adjustments
+    with st.expander(
+        "🛠️ Ajuste Manual de Banderas y Sincronizador en Pico (Opcional — solo si necesitas corregir el ritmo manualmente)",
+        expanded=False,
+    ):
+        st.info(
+            "Usa estas herramientas solo si sientes que el metrónomo va adelantado/atrasado "
+            "o si quieres agregar cambios de BPM manualmente."
+        )
+
+        col_offset_hdr, col_redetect = st.columns([2.6, 1.4])
+        with col_offset_hdr:
+            st.markdown("**⏱️ Ajuste de Primer Pulso (Beat Offset) y Recorte**")
+        with col_redetect:
+            if st.button(
+                "🔄 Re-detectar Automáticamente",
+                key="btn_reset_detection",
+                use_container_width=True,
+            ):
+                auto_secs = detect_tempo_sections((y, sr))
+                auto_offset = detect_beat_offset_ms(y, sr)
+                st.session_state["bpm_sections"] = auto_secs
+                st.session_state["initial_sections"] = list(auto_secs)
+                st.session_state["beat_offset_ms"] = auto_offset
+                st.session_state["fit_quality"] = compute_fit_quality(y, sr, auto_secs, auto_offset)
+                st.success("Ritmo y banderas restablecidos a la detección automática.")
+                st.rerun()
+
+        new_beat_offset, new_start_offset, new_end_offset = render_offset_controls(
+            beat_offset_ms=int(st.session_state.get("beat_offset_ms", 0)),
+            start_offset_s=float(st.session_state.get("start_song_offset", 0.0)),
+            end_offset_s=float(st.session_state.get("end_song_offset", 0.0)),
+            audio_duration=duration,
+        )
+        st.session_state["beat_offset_ms"] = new_beat_offset
+        st.session_state["start_song_offset"] = new_start_offset
+        st.session_state["end_song_offset"] = new_end_offset
+
+        updated_sections = render_flag_editor(
+            st.session_state["bpm_sections"],
+            audio_duration=duration,
+            y=y,
+            sr=sr,
+        )
+        if updated_sections != st.session_state["bpm_sections"]:
+            st.session_state["bpm_sections"] = updated_sections
             st.rerun()
