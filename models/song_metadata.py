@@ -87,9 +87,6 @@ class AnalyseResult:
         )
 
 
-from audio_analysis.exceptions import ValidationError
-
-
 def sections_to_native_tempo(bpm_sections: List[BPMSection]) -> Tuple[Union[float, int], List[CustomTempoSection]]:
     if not bpm_sections:
         raise ValidationError("bpm_sections cannot be empty.")
@@ -247,3 +244,7 @@ class ExportResult:
 
     def __fspath__(self) -> str:
         return str(self.folder_path) if self.folder_path is not None else ""
+
+
+from audio_analysis.exceptions import ValidationError  # noqa: E402
+
