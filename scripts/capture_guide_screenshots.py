@@ -181,7 +181,7 @@ def capture_all_screenshots() -> None:
                     "Onda DAW + Metrónomo",
                     [
                         (890, 665, "1. Reproductor DAW en Vivo", "Rueda: Zoom · Shift+Arrastrar: Mover · Metrónomo", (140, 480, 1300, 780)),
-                        (890, 1110, "2. Banderas Multi-Tempo", "Salta entre secciones (Base, Lento 0.5x, Rápido 2x)", (140, 790, 1300, 930)),
+                        (890, 1110, "2. Selector de Secciones", "Menú desplegable para saltar a cada cambio de ritmo", (140, 790, 1300, 930)),
                         (890, 1340, "3. Continuar o Ajuste Manual", "Avanza directo al Paso 3 o abre el editor opcional", (140, 940, 1300, 1060)),
                     ],
                 )

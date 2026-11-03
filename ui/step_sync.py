@@ -33,37 +33,68 @@ def _section_role_label(index: int, bpm: float, base_bpm: float) -> str:
 
 
 def _render_tempo_sections_strip(sections: List[BPMSection]) -> None:
-    """Render interactive tempo section chips and a concise explanation of the flag count."""
+    """Render a clean dropdown selector and quick jump for detected tempo sections."""
     if not sections:
         return
 
     base_bpm = float(sections[0].bpm)
-    st.markdown("##### :material/flag: Secciones de ritmo detectadas (clic para escuchar)")
-
-    cols_per_row = min(4, max(1, len(sections)))
-    for row_start in range(0, len(sections), cols_per_row):
-        row_slice = sections[row_start : row_start + cols_per_row]
-        chip_cols = st.columns(len(row_slice), gap="small")
-        for col, (idx, sec) in zip(chip_cols, enumerate(row_slice, start=row_start)):
-            role = _section_role_label(idx, float(sec.bpm), base_bpm)
-            label = f"#{idx + 1} · {_format_chip_time(sec.startTime)} · {sec.bpm:.1f} BPM ({role})"
-            with col:
-                if st.button(label, key=f"chip_sec_{idx}", icon=":material/flag:", width="stretch"):
-                    st.session_state["player_seek_time"] = float(sec.startTime)
-                    st.rerun()
 
     if len(sections) == 1:
         st.info(
-            "**Ritmo constante detectado (1 bandera):** Esta canción mantiene un pulso estable de principio a fin. "
-            "Si tiene un cambio de ritmo que quieras marcar a mano, usa el ajuste manual opcional abajo.",
+            f"**Ritmo constante detectado:** Esta canción mantiene un pulso uniforme de **{base_bpm:.1f} BPM** de principio a fin.",
             icon=":material/info:",
         )
-    else:
-        st.info(
-            f"**Múltiples ritmos detectados ({len(sections)} banderas):** Se detectaron cambios de velocidad "
-            "o intensidad automáticamente a lo largo de la canción.",
-            icon=":material/info:",
+        return
+
+    st.markdown("##### :material/alt_route: Secciones de ritmo detectadas")
+
+    options = list(range(len(sections)))
+
+    def _format_option(idx: int) -> str:
+        sec = sections[idx]
+        role = _section_role_label(idx, float(sec.bpm), base_bpm)
+        time_str = _format_chip_time(sec.startTime)
+        return f"Sección #{idx + 1} de {len(sections)} · {time_str} ({sec.startTime:.2f}s) — {sec.bpm:.1f} BPM ({role})"
+
+    current_seek = float(st.session_state.get("player_seek_time", 0.0))
+    default_idx = 0
+    for i, s in enumerate(sections):
+        if abs(s.startTime - current_seek) < 0.25:
+            default_idx = i
+            break
+
+    def _on_tempo_section_change() -> None:
+        idx = st.session_state.get("tempo_section_dropdown_select", 0)
+        if 0 <= idx < len(sections):
+            st.session_state["player_seek_time"] = float(sections[idx].startTime)
+
+    col_select, col_jump = st.columns([3.8, 1.4], gap="small")
+    with col_select:
+        selected_idx = st.selectbox(
+            f"Selecciona una sección para escuchar ({len(sections)} detectadas en total):",
+            options=options,
+            index=default_idx,
+            format_func=_format_option,
+            key="tempo_section_dropdown_select",
+            on_change=_on_tempo_section_change,
+            help="Elige una sección de ritmo en el menú desplegable para saltar a ese punto en la reproducción.",
         )
+    with col_jump:
+        st.markdown('<div style="padding-top: 1.65rem;"></div>', unsafe_allow_html=True)
+        if st.button(
+            "Saltar a sección",
+            key="btn_jump_to_selected_section",
+            icon=":material/play_circle:",
+            type="secondary",
+            width="stretch",
+        ):
+            st.session_state["player_seek_time"] = float(sections[selected_idx].startTime)
+            st.rerun()
+
+    st.caption(
+        f":material/info: Se detectaron {len(sections)} cambios de velocidad o intensidad a lo largo de la pista. "
+        "Elige cualquier sección en el menú desplegable para comprobar su sincronización con el metrónomo."
+    )
 
 
 _render_detected_sections_strip = _render_tempo_sections_strip

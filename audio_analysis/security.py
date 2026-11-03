@@ -1,6 +1,8 @@
 """Zero-trust binary upload firewall and non-destructive MD5 hasher for audio files."""
 
 import hashlib
+import re
+import unicodedata
 from pathlib import Path
 from typing import Set, Tuple
 
@@ -134,6 +136,33 @@ def compute_audio_md5(data: bytes) -> str:
     return hashlib.md5(bytes(data)).hexdigest()
 
 
+def sanitize_song_title(raw_name: str) -> str:
+    """Strip special characters from a song title, leaving only clean ASCII text, digits, spaces, and hyphens.
+
+    Normalizes unicode accents (e.g. 'Canción' -> 'Cancion'), removes emojis, symbols, brackets,
+    parentheses, slashes, and punctuation, and collapses multiple spaces.
+    """
+    if not raw_name or not isinstance(raw_name, str):
+        return "Song"
+    normalized = unicodedata.normalize("NFKD", raw_name)
+    ascii_clean = "".join(c for c in normalized if not unicodedata.combining(c))
+    cleaned = re.sub(r"[^a-zA-Z0-9_\-\s]", " ", ascii_clean)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    if not re.search(r"[a-zA-Z0-9]", cleaned):
+        return "Song"
+    return cleaned
+
+
+def sanitize_upload_filename(filename: str) -> str:
+    """Sanitize uploaded filename so it has only clean text/numbers and a valid extension."""
+    if not filename or not isinstance(filename, str):
+        return "song.mp3"
+    p = Path(filename.strip())
+    clean_stem = sanitize_song_title(p.stem)
+    ext = p.suffix.lower() if p.suffix.lower() in ALLOWED_AUDIO_EXTENSIONS else ".mp3"
+    return f"{clean_stem}{ext}"
+
+
 __all__ = [
     "ALLOWED_AUDIO_EXTENSIONS",
     "MAX_AUDIO_SIZE_BYTES",
@@ -141,4 +170,6 @@ __all__ = [
     "AudioSecurityError",
     "validate_audio_upload",
     "compute_audio_md5",
+    "sanitize_song_title",
+    "sanitize_upload_filename",
 ]

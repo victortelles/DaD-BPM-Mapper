@@ -91,7 +91,7 @@ def test_valid_meta_json_generation_with_custom_tempo_sections():
     fake_flac = b"fLaC\x00\x00\x00\x22_RAW_AUDIO_STREAM"
 
     meta = generate_metadata(
-        "La Cumbia 🔥 - Bukano",
+        "La Cumbia - Bukano",
         sections,
         audio_bytes=fake_flac,
         original_filename="D:/Music/La Cumbia.flac",
@@ -106,7 +106,7 @@ def test_valid_meta_json_generation_with_custom_tempo_sections():
     )
 
     meta_json = meta.to_meta_json()
-    assert "\t\"songName\": \"La Cumbia 🔥 - Bukano\"" in meta_json
+    assert "\t\"songName\": \"La Cumbia - Bukano\"" in meta_json
     data = json.loads(meta_json)
 
     assert list(data.keys()) == EXPECTED_16_KEYS

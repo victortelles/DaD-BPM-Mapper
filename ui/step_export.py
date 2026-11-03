@@ -6,6 +6,7 @@ import streamlit as st
 
 from audio_analysis.converter import convert_audio_bytes_to_ogg
 from audio_analysis.exceptions import DependencyError, TranscodingError
+from audio_analysis.security import sanitize_song_title
 from export.exceptions import ExportIOError
 from export.package_builder import (
     build_mod_zip,
@@ -85,7 +86,7 @@ def render_step_export() -> None:
                 key="export_performed_by_input",
             )
 
-        effective_song_name = song_name_input.strip() or default_song_name
+        effective_song_name = sanitize_song_title(song_name_input.strip() or default_song_name)
         st.session_state["song_name"] = effective_song_name
         st.session_state["performed_by"] = performed_by_input
         safe_folder = sanitize_folder_name(effective_song_name)

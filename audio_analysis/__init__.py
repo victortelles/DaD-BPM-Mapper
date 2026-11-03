@@ -49,6 +49,8 @@ from .security import (
     ALLOWED_AUDIO_EXTENSIONS,
     MAX_AUDIO_SIZE_BYTES,
     compute_audio_md5,
+    sanitize_song_title,
+    sanitize_upload_filename,
     validate_audio_upload,
 )
 
@@ -84,6 +86,8 @@ __all__ = [
     "MAX_AUDIO_SIZE_BYTES",
     "validate_audio_upload",
     "compute_audio_md5",
+    "sanitize_song_title",
+    "sanitize_upload_filename",
     "AudioAnalysisError",
     "AudioProcessingError",
     "SecurityValidationError",

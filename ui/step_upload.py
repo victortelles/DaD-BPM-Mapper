@@ -16,6 +16,8 @@ from audio_analysis.exceptions import AudioProcessingError, InsufficientAudioSig
 from audio_analysis.security import (
     SecurityValidationError,
     compute_audio_md5,
+    sanitize_song_title,
+    sanitize_upload_filename,
     validate_audio_upload,
 )
 from export.package_builder import list_imported_songs
@@ -43,7 +45,7 @@ def _apply_imported_meta(meta: SongMetadata) -> list:
     st.session_state["beat_offset_ms"] = int(round(float(meta.beatOffset)))
     st.session_state["start_song_offset"] = float(meta.startSongOffset)
     st.session_state["end_song_offset"] = float(meta.endSongOffset)
-    st.session_state["song_name"] = meta.songName
+    st.session_state["song_name"] = sanitize_song_title(meta.songName)
     if meta.analyseResult is not None:
         st.session_state["fit_quality"] = float(meta.analyseResult.fitQuality)
     return sections
@@ -102,7 +104,7 @@ def _render_import_expander() -> None:
                             validate_audio_upload(entry.ogg_path.name, ogg_bytes)
                             y_loaded, sr_loaded = load_audio(ogg_bytes)
                             st.session_state["audio_bytes"] = ogg_bytes
-                            st.session_state["filename"] = entry.ogg_path.name
+                            st.session_state["filename"] = sanitize_upload_filename(entry.ogg_path.name)
                             st.session_state["audio_md5"] = compute_audio_md5(ogg_bytes)
                             st.session_state["y"] = y_loaded
                             st.session_state["sr"] = sr_loaded
@@ -164,12 +166,14 @@ def render_step_upload() -> None:
                     offset_ms = detect_beat_offset_ms(y, sr)
                     fit_qual = compute_fit_quality(y, sr, sections, offset_ms)
 
+                    clean_title = sanitize_song_title(Path(uploaded_file.name).stem)
+                    clean_filename = sanitize_upload_filename(uploaded_file.name)
                     st.session_state.update({
-                        "audio_bytes": raw_bytes, "filename": uploaded_file.name, "audio_md5": audio_md5,
+                        "audio_bytes": raw_bytes, "filename": clean_filename, "audio_md5": audio_md5,
                         "y": y, "sr": sr, "bpm_sections": sections, "initial_sections": list(sections),
                         "beat_offset_ms": offset_ms, "start_song_offset": 0.0, "end_song_offset": 0.0,
                         "fit_quality": fit_qual, "player_seek_time": 0.0,
-                        "song_name": Path(uploaded_file.name).stem,
+                        "song_name": clean_title,
                         "export_result": None, "ogg_bytes": None,
                         "wizard_step": 2,
                     })

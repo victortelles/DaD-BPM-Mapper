@@ -44,8 +44,8 @@ GUIDE_STEP_CALLOUTS: Dict[int, List[str]] = {
     ],
     2: [
         "1. Activa «Metrónomo: ON» y pulsa «Reproducir» para escuchar los clics sobre la canción.",
-        "2. Usa la rueda del ratón para hacer zoom y «Shift/Ctrl + arrastrar» para mover la línea de tiempo.",
-        "3. Si todo suena a tiempo, pulsa «El ritmo es correcto — Ir al Paso 3 (Descargar)».",
+        "2. Elige cualquier cambio de ritmo en el menú desplegable y usa la rueda del ratón para zoom o Shift+arrastrar para mover la onda.",
+        "3. Si todo suena a tiempo, pulsa «Suena bien — Continuar al Paso 3: Descargar Mod (.ZIP)».",
     ],
     3: [
         "1. Escribe el título de la canción y opcionalmente el artista y compositor.",

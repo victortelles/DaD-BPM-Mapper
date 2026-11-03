@@ -1,6 +1,6 @@
 <div align="center">
 
-**[🇪🇸 Leer en Español](README.md)** | **[🇺🇸 Read in English](README.en.md)**
+**[Leer en Español](README.md)** | **[Read in English](README.en.md)**
 
   <img src="Logo.PNG" alt="Dead as Disco – BPM & BeatSync Studio v2" width="320"/>
   <h1>Dead as Disco — BPM & BeatSync Studio (v2)</h1>
@@ -9,7 +9,7 @@
 
 ---
 
-## 🎯 Purpose & Overview (Lead with the Outcome)
+## Purpose & Overview (Lead with the Outcome)
 
 **Direct Outcome:** Turn any music track (`.mp3`, `.wav`, `.ogg`, `.flac`) into a native **Dead as Disco** mod package (`<SongName>/audio.ogg` at **44.1 kHz** + 16-field `<SongName>/Meta.json`), ready to unzip into `%localappdata%\Pagoda\Saved\ImportedSongs\`.
 
@@ -23,7 +23,7 @@ When importing custom songs with tempo changes, asymmetric intros, or syncopated
 
 ---
 
-## ⚡ Quick Path
+## Quick Path
 
 1. **Upload Track (Step 1)**: Upload your audio file through the binary magic-byte security firewall.
 2. **Sync Rhythm (Step 2)**: Verify the first downbeat (`beatOffset`) and tempo sections on the live waveform player with WebAudio metronome and beat grid.
@@ -31,7 +31,7 @@ When importing custom songs with tempo changes, asymmetric intros, or syncopated
 
 ---
 
-## 🖼️ Step-by-Step Visual Guide
+## Step-by-Step Visual Guide
 
 ### Step 1: Upload Audio Validated by Binary Firewall
 Upload your music track (`.mp3`, `.wav`, `.ogg`, `.flac`) and optionally an existing `Meta.json` file. The engine inspects binary magic-byte headers before decoding and computes the original MD5 hash without mutating your source file.
@@ -63,7 +63,7 @@ Extract the `<SongName>/` folder into `%localappdata%\Pagoda\Saved\ImportedSongs
 
 ---
 
-## 📄 Official Output Format (`Meta.json` + `audio.ogg`)
+## Official Output Format (`Meta.json` + `audio.ogg`)
 
 Every exported package produces the exact folder structure expected by Unreal Engine / Pagoda:
 
@@ -137,7 +137,7 @@ Every exported package produces the exact folder structure expected by Unreal En
 
 ---
 
-## 🧱 S.O.L.I.D Modular Architecture (`< 400` Lines per File)
+## S.O.L.I.D Modular Architecture (`< 400` Lines per File)
 
 The codebase enforces strict Single Responsibility (**S.O.L.I.D**) and an automated architectural gate guaranteeing **every file stays strictly under 400 lines of code** (`tests/test_architecture_limits.py`). Domain layers (`models/`, `audio_analysis/`, `export/`) have zero dependency on Streamlit.
 
@@ -178,7 +178,7 @@ The codebase enforces strict Single Responsibility (**S.O.L.I.D**) and an automa
 
 ---
 
-## 🛠️ Installation, Local Execution & Testing
+## Installation, Local Execution & Testing
 
 ### 1. Prerequisites
 - **Python 3.10+** (Python 3.12 recommended).
@@ -211,7 +211,7 @@ pytest tests/test_architecture_limits.py tests/test_e2e_workflow.py -v
 
 ---
 
-## 🔒 Security, Privacy & Legal Disclaimer (DMCA)
+## Security, Privacy & Legal Disclaimer (DMCA)
 
 - **Binary Upload Firewall**: Only `.mp3`, `.wav`, `.ogg`, and `.flac` files (`64 B` to `100 MB`) with authentic binary magic-byte headers (`ID3`/MPEG sync, `RIFF`/`WAVE`, `OggS`, `fLaC`) are accepted. Renamed executables or scripts are rejected before reaching any audio decoder.
 - **100% Ephemeral & Non-Destructive Processing**: Uploaded tracks are processed in memory or isolated temporary directories. Original files are never modified, preserving their exact `originalAudioFileHash` (MD5).

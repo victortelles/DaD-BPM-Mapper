@@ -1,6 +1,6 @@
 <div align="center">
 
-**[🇪🇸 Leer en Español](README.md)** | **[🇺🇸 Read in English](README.en.md)**
+**[Leer en Español](README.md)** | **[Read in English](README.en.md)**
 
   <img src="Logo.PNG" alt="Dead as Disco – BPM & BeatSync Studio v2" width="320"/>
   <h1>Dead as Disco — BPM & BeatSync Studio (v2)</h1>
@@ -9,7 +9,7 @@
 
 ---
 
-## 🎯 Propósito y Solución (Lead with the Outcome)
+## Propósito y Solución (Lead with the Outcome)
 
 **Resultado directo:** Convierte cualquier pista musical (`.mp3`, `.wav`, `.ogg`, `.flac`) en un paquete de mod nativo para **Dead as Disco** (`<SongName>/audio.ogg` a **44.1 kHz** + `<SongName>/Meta.json` de **16 campos**), listo para descomprimir en `%localappdata%\Pagoda\Saved\ImportedSongs\`.
 
@@ -23,7 +23,7 @@ Cuando importas canciones con cambios de ritmo, introducciones asimétricas o pe
 
 ---
 
-## ⚡ Ruta Rápida (Quick Path)
+## Ruta Rápida (Quick Path)
 
 1. **Subir Pista (Paso 1)**: Carga tu archivo de audio validado por el firewall binario de cabeceras mágicas.
 2. **Sincronizar Ritmo (Paso 2)**: Verifica el golpe inicial (`beatOffset`) y las secciones de tempo en el reproductor en vivo con metrónomo y cuadrícula de beats.
@@ -31,7 +31,7 @@ Cuando importas canciones con cambios de ritmo, introducciones asimétricas o pe
 
 ---
 
-## 🖼️ Guía Visual Paso a Paso
+## Guía Visual Paso a Paso
 
 ### Paso 1: Subir Audio Validado por Firewall Binario
 Sube tu pista musical (`.mp3`, `.wav`, `.ogg`, `.flac`) y, opcionalmente, un archivo `Meta.json` previo. El motor verifica la firma binaria real (*magic bytes*) antes de decodificar la señal y calcula el hash MD5 original sin alterar tus archivos.
@@ -63,7 +63,7 @@ Extrae la carpeta `<SongName>/` dentro de `%localappdata%\Pagoda\Saved\ImportedS
 
 ---
 
-## 📄 Formato Oficial de Salida (`Meta.json` + `audio.ogg`)
+## Formato Oficial de Salida (`Meta.json` + `audio.ogg`)
 
 Cada paquete exportado genera la estructura exacta requerida por Unreal Engine / Pagoda:
 
@@ -137,7 +137,7 @@ Cada paquete exportado genera la estructura exacta requerida por Unreal Engine /
 
 ---
 
-## 🧱 Arquitectura Modular S.O.L.I.D (`< 400` Líneas por Archivo)
+## Arquitectura Modular S.O.L.I.D (`< 400` Líneas por Archivo)
 
 El repositorio aplica separación estricta de responsabilidades (**S.O.L.I.D**) y un límite arquitectónico automatizado donde **ningún archivo supera las 400 líneas de código** (`tests/test_architecture_limits.py`). Las capas de dominio (`models/`, `audio_analysis/`, `export/`) son 100% independientes de Streamlit.
 
@@ -178,7 +178,7 @@ El repositorio aplica separación estricta de responsabilidades (**S.O.L.I.D**) 
 
 ---
 
-## 🛠️ Instalación, Ejecución Local y Pruebas
+## Instalación, Ejecución Local y Pruebas
 
 ### 1. Prerrequisitos
 - **Python 3.10+** (recomendado Python 3.12).
@@ -211,7 +211,7 @@ pytest tests/test_architecture_limits.py tests/test_e2e_workflow.py -v
 
 ---
 
-## 🔒 Políticas de Seguridad, Privacidad y Aviso Legal (DMCA)
+## Políticas de Seguridad, Privacidad y Aviso Legal (DMCA)
 
 - **Firewall Binario de Subida**: Solo se aceptan extensiones `.mp3`, `.wav`, `.ogg` y `.flac` (entre `64 B` y `100 MB`) cuyas cabeceras binarias coincidan con firmas reales (`ID3`/MPEG sync, `RIFF`/`WAVE`, `OggS`, `fLaC`). Cualquier binario ejecutable o script camuflado es bloqueado antes de tocar el decodificador.
 - **Procesamiento 100% Efímero y No Destructivo**: Los archivos de audio se procesan en memoria RAM o directorios temporales aislados. El archivo original jamás es modificado y su hash MD5 (`originalAudioFileHash`) se preserva íntegro.
