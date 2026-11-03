@@ -148,11 +148,12 @@ def recalculate_all_bpms_from_peaks(
 
 def detect_tempo_sections(
     audio_source: Union[str, Path, bytes, bytearray, Tuple[np.ndarray, int]],
-    min_bpm_change: float = 6.0,
-    window_duration_seconds: float = 8.0,
+    min_bpm_change: float = 5.0,
+    window_duration_seconds: float = 4.0,
 ) -> List[BPMSection]:
-    """Detect dynamic or constant tempo sections from an audio track."""
+    """Detect dynamic tempo changes and rhythmic subdivision sections (0.5x / 1x / 2x) from an audio track."""
     import librosa
+    from scipy.signal import find_peaks
 
     if isinstance(audio_source, tuple) and len(audio_source) == 2 and isinstance(audio_source[0], np.ndarray):
         y, sr = audio_source
@@ -193,53 +194,140 @@ def detect_tempo_sections(
     except Exception:
         onset_times = beat_times
 
-    if total_duration < window_duration_seconds * 1.5 or (len(beat_times) < 8 and len(onset_times) < 8):
+    eff_window = max(2.0, min(float(window_duration_seconds), 5.0))
+    if total_duration < max(6.0, eff_window * 1.5) or (len(beat_times) < 8 and len(onset_times) < 8):
         return recalculate_beats([BPMSection(startTime=0.0, startBeat=0.0, bpm=round(global_bpm, 2))])
 
-    hop_sec = window_duration_seconds / 2.0
-    window_starts = np.arange(0.0, max(0.0, total_duration - window_duration_seconds + 0.1), hop_sec)
-    window_tempos: List[Tuple[float, float]] = []
+    hop_sec = eff_window / 2.0
+    window_starts = np.arange(0.0, max(0.0, total_duration - eff_window + 0.1), hop_sec)
+    global_max = float(np.max(np.abs(y)))
+    window_profiles: List[Tuple[float, float, float, float, bool]] = []
 
     for w_start in window_starts:
-        w_end = min(total_duration, w_start + window_duration_seconds)
-        local_bpm = None
+        w_end = min(total_duration, float(w_start) + eff_window)
+        s_idx = int(w_start * sr)
+        e_idx = min(len(y), int(w_end * sr))
+        w_dur = (e_idx - s_idx) / float(sr)
+        if w_dur < 1.5:
+            continue
+
+        y_win = y[s_idx:e_idx]
+        abs_win = np.abs(y_win)
+        local_rms = float(np.sqrt(np.mean(y_win ** 2)))
+        local_max = float(np.max(abs_win))
+
+        peak_thresh = max(1e-4, global_max * 0.10, local_max * 0.22)
+        peaks, _ = find_peaks(abs_win, height=peak_thresh, distance=max(1, int(sr * 0.08)))
+        peak_times_win = float(w_start) + (peaks / float(sr))
+
+        ibi_bpm = None
+        clean_ibi = False
+        interval_rate = None
+        if len(peak_times_win) >= 3:
+            ibis = np.diff(peak_times_win)
+            valid_ibis = ibis[(ibis >= 0.18) & (ibis <= 2.2)]
+            if len(valid_ibis) >= 2:
+                med_ibi = float(np.median(valid_ibis))
+                cv_ibi = float(np.std(valid_ibis) / max(1e-6, np.mean(valid_ibis)))
+                ibi_bpm = float(60.0 / med_ibi)
+                interval_rate = float(1.0 / med_ibi)
+                clean_ibi = cv_ibi <= 0.22
+
+        dyn_bpm = None
         if dyn_tempi is not None and frame_times is not None:
             mask = (frame_times >= w_start) & (frame_times <= w_end)
             if np.any(mask):
                 valid_tempi = dyn_tempi[mask]
                 valid_tempi = valid_tempi[(valid_tempi >= 20.0) & (valid_tempi <= 400.0)]
                 if len(valid_tempi) > 0:
-                    local_bpm = float(np.median(valid_tempi))
-        if local_bpm is None:
-            times_in_w = onset_times[(onset_times >= w_start) & (onset_times <= w_end)]
-            if len(times_in_w) >= 3:
-                ibis = np.diff(times_in_w)
-                valid_ibis = ibis[(ibis >= 0.15) & (ibis <= 2.5)]
-                if len(valid_ibis) >= 2:
-                    local_bpm = float(60.0 / np.median(valid_ibis))
-        if local_bpm is not None and local_bpm > 0:
-            window_tempos.append((float(w_start), float(local_bpm)))
+                    dyn_bpm = float(np.median(valid_tempi))
 
-    if len(window_tempos) < 2:
+        if clean_ibi and ibi_bpm is not None:
+            raw_bpm = ibi_bpm
+        elif dyn_bpm is not None and dyn_bpm > 0:
+            raw_bpm = dyn_bpm
+        else:
+            raw_bpm = ibi_bpm if (ibi_bpm is not None and ibi_bpm > 0) else global_bpm
+
+        onsets_in_w = onset_times[(onset_times >= w_start) & (onset_times <= w_end)]
+        peak_rate = len(peak_times_win) / w_dur
+        onset_cnt_rate = len(onsets_in_w) / w_dur if len(onsets_in_w) > 0 else peak_rate
+        onset_rate = (0.6 * interval_rate + 0.4 * peak_rate) if (interval_rate is not None and clean_ibi) else (0.5 * peak_rate + 0.5 * onset_cnt_rate)
+
+        mid_idx = s_idx + (e_idx - s_idx) // 2
+        rms_1 = float(np.sqrt(np.mean(y[s_idx:mid_idx] ** 2))) if mid_idx > s_idx else local_rms
+        rms_2 = float(np.sqrt(np.mean(y[mid_idx:e_idx] ** 2))) if e_idx > mid_idx else local_rms
+        half_shift = abs(rms_2 - rms_1) / max(1e-6, max(rms_1, rms_2)) > 0.35
+        cand_time = float(w_start) + hop_sec if (w_start > 0.0 and half_shift) else float(w_start)
+
+        window_profiles.append((cand_time, float(raw_bpm), local_rms, float(onset_rate), clean_ibi))
+
+    if len(window_profiles) < 2:
         return recalculate_beats([BPMSection(startTime=0.0, startBeat=0.0, bpm=round(global_bpm, 2))])
 
-    tempos_only = [t[1] for t in window_tempos]
-    if (max(tempos_only) - min(tempos_only)) < min_bpm_change or float(np.std(tempos_only)) < (min_bpm_change / 2.0):
+    raw_bpms = [p[1] for p in window_profiles]
+    rms_vals = [p[2] for p in window_profiles]
+    onset_rates = [p[3] for p in window_profiles]
+
+    cv_rms = float(np.std(rms_vals)) / max(1e-6, float(np.mean(rms_vals)))
+    cv_onset = float(np.std(onset_rates)) / max(1e-6, float(np.mean(onset_rates)))
+    bpm_span = max(raw_bpms) - min(raw_bpms)
+    has_dynamic_variation = (cv_rms > 0.12) or (cv_onset > 0.18)
+
+    if bpm_span < min_bpm_change and not has_dynamic_variation:
+        return recalculate_beats([BPMSection(startTime=0.0, startBeat=0.0, bpm=round(global_bpm, 2))])
+
+    if all(p[4] for p in window_profiles):
+        base_bpm = raw_bpms[0] if (65.0 <= raw_bpms[0] <= 165.0) else min(raw_bpms, key=lambda b: abs(b - global_bpm))
+    else:
+        base_bpm = global_bpm
+
+    med_rms = max(1e-6, float(np.median(rms_vals)))
+    med_onset = max(1e-6, float(np.median(onset_rates)))
+    window_tempos: List[Tuple[float, float, bool]] = []
+
+    for cand_time, raw_bpm, local_rms, onset_rate, clean_ibi in window_profiles:
+        if abs(raw_bpm - base_bpm * 0.5) <= max(4.0, base_bpm * 0.06) and base_bpm * 0.5 >= 40.0:
+            eff_bpm, preserve_exact = round(base_bpm * 0.5, 2), True
+        elif abs(raw_bpm - base_bpm * 2.0) <= max(6.0, base_bpm * 0.06) and base_bpm * 2.0 <= 250.0:
+            eff_bpm, preserve_exact = round(base_bpm * 2.0, 2), True
+        elif abs(raw_bpm - base_bpm) >= max(min_bpm_change, base_bpm * 0.10 if not clean_ibi else min_bpm_change):
+            eff_bpm, preserve_exact = round(raw_bpm, 2), clean_ibi
+        elif has_dynamic_variation:
+            if (onset_rate >= 1.45 * med_onset or (local_rms >= 1.35 * med_rms and onset_rate >= 1.10 * med_onset)) and base_bpm * 2.0 <= 240.0:
+                eff_bpm, preserve_exact = round(base_bpm * 2.0, 2), True
+            elif (onset_rate <= 0.65 * med_onset or (local_rms <= 0.65 * med_rms and onset_rate <= 1.05 * med_onset)) and base_bpm * 0.5 >= 42.0:
+                eff_bpm, preserve_exact = round(base_bpm * 0.5, 2), True
+            else:
+                eff_bpm, preserve_exact = round(base_bpm, 2), True
+        else:
+            eff_bpm, preserve_exact = round(base_bpm, 2), True
+        window_tempos.append((cand_time, eff_bpm, preserve_exact))
+
+    eff_bpms_only = [t[1] for t in window_tempos]
+    if (max(eff_bpms_only) - min(eff_bpms_only)) < min_bpm_change:
         return recalculate_beats([BPMSection(startTime=0.0, startBeat=0.0, bpm=round(global_bpm, 2))])
 
     first_bpm = window_tempos[0][1]
     detected_sections: List[BPMSection] = [BPMSection(startTime=0.0, startBeat=0.0, bpm=round(first_bpm, 2))]
     current_section_bpm = first_bpm
 
-    for w_start, w_bpm in window_tempos[1:]:
+    for cand_time, w_bpm, preserve_exact in window_tempos[1:]:
         if abs(w_bpm - current_section_bpm) >= min_bpm_change:
-            transition_time = snap_to_nearest_transient(float(w_start), y, sr, search_window=hop_sec / 2.0)
-            if transition_time > detected_sections[-1].startTime + 1.5:
-                _, refined_bpm = estimate_local_bpm_at_time(
-                    y, sr, transition_time, duration=window_duration_seconds, snap_transient=False
+            transition_time = snap_to_nearest_transient(
+                float(cand_time), y, sr, search_window=min(1.5, hop_sec / 2.0)
+            )
+            if transition_time >= detected_sections[-1].startTime + 2.5:
+                if preserve_exact:
+                    final_bpm = w_bpm
+                else:
+                    _, refined_bpm = estimate_local_bpm_at_time(
+                        y, sr, transition_time, duration=eff_window, snap_transient=False
+                    )
+                    final_bpm = refined_bpm if (refined_bpm > 0 and abs(refined_bpm - current_section_bpm) >= min_bpm_change) else w_bpm
+                detected_sections.append(
+                    BPMSection(startTime=round(transition_time, 3), startBeat=0.0, bpm=round(final_bpm, 2))
                 )
-                final_bpm = refined_bpm if refined_bpm > 0 else w_bpm
-                detected_sections.append(BPMSection(startTime=round(transition_time, 3), startBeat=0.0, bpm=round(final_bpm, 2)))
                 current_section_bpm = final_bpm
 
     final_sections = recalculate_beats(detected_sections)
@@ -249,8 +337,8 @@ def detect_tempo_sections(
 
 def analyze_track_full(
     audio_source: Union[str, Path, bytes, bytearray, Tuple[np.ndarray, int]],
-    min_bpm_change: float = 6.0,
-    window_duration_seconds: float = 8.0,
+    min_bpm_change: float = 5.0,
+    window_duration_seconds: float = 4.0,
 ) -> Dict[str, Any]:
     """Run complete native Dead as Disco rhythm analysis (tempo, offset_ms, sections, fit_quality)."""
     if isinstance(audio_source, tuple) and len(audio_source) == 2 and isinstance(audio_source[0], np.ndarray):
@@ -276,3 +364,4 @@ def analyze_track_full(
 
 
 analyze_audio = analyze_track_full
+

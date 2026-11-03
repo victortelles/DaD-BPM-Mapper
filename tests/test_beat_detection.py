@@ -240,3 +240,48 @@ def test_analyze_track_full_and_non_destructive_bytes(metronome_audio_file: Path
     assert isinstance(result["custom_tempo_sections"], list)
     assert isinstance(result["beat_offset_ms"], int) and result["beat_offset_ms"] >= 0
     assert 0.85 <= result["fit_quality"] <= 1.0
+
+
+def test_subdivision_regimes_and_uniform_guard():
+    """Scenario: Track with 1x verse, 0.5x breakdown, and 2x drop yields multiple sections, while uniform click track yields 1."""
+    sr = 22050
+    duration = 24.0
+
+    # 1. Uniform 24s click track at 120 BPM must remain a single BPMSection
+    uniform_sig = np.zeros(int(sr * duration), dtype=np.float32)
+    for t_click in np.arange(0.0, duration, 0.5):
+        idx = int(t_click * sr)
+        if idx + 200 <= len(uniform_sig):
+            uniform_sig[idx : idx + 200] = 0.8 * np.hanning(200)
+
+    uniform_sections = detect_tempo_sections((uniform_sig, sr))
+    assert len(uniform_sections) == 1
+    assert uniform_sections[0].startTime == 0.0
+    assert 115.0 <= uniform_sections[0].bpm <= 125.0
+
+    # 2. Dynamic subdivision track: 0-8s Verse (1x = 96 BPM), 8-16s Breakdown (0.5x = 48 BPM), 16-24s Drop (2x = 192 BPM)
+    subdiv_sig = np.zeros(int(sr * duration), dtype=np.float32)
+    base_period = 60.0 / 96.0  # 0.625s
+    for t_click in np.arange(0.0, 8.0, base_period):
+        idx = int(t_click * sr)
+        if idx + 200 <= len(subdiv_sig):
+            subdiv_sig[idx : idx + 200] = 0.55 * np.hanning(200)
+
+    for t_click in np.arange(8.0, 16.0, base_period * 2.0):
+        idx = int(t_click * sr)
+        if idx + 200 <= len(subdiv_sig):
+            subdiv_sig[idx : idx + 200] = 0.25 * np.hanning(200)
+
+    for t_click in np.arange(16.0, 24.0, base_period * 0.5):
+        idx = int(t_click * sr)
+        if idx + 200 <= len(subdiv_sig):
+            subdiv_sig[idx : idx + 200] = 0.95 * np.hanning(200)
+
+    sections = detect_tempo_sections((subdiv_sig, sr))
+    assert len(sections) >= 3
+    assert sections[0].startTime == 0.0
+    assert 90.0 <= sections[0].bpm <= 102.0
+    bpms = [s.bpm for s in sections]
+    assert any(44.0 <= b <= 52.0 for b in bpms)
+    assert any(180.0 <= b <= 204.0 for b in bpms)
+
