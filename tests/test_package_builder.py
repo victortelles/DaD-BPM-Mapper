@@ -45,13 +45,13 @@ EXPECTED_16_KEYS = [
 
 
 def test_song_title_sanitization_and_display_name_preservation():
-    """Verify folder name sanitization while keeping display songName intact in Meta.json."""
+    """Verify folder name sanitization and display songName cleaned of special characters in Meta.json."""
     raw_title = "Rock / Pop: Hit? *"
-    assert sanitize_song_name(raw_title) == "Rock___Pop__Hit___"
+    assert sanitize_song_name(raw_title) == "Rock Pop Hit"
     assert sanitize_song_name("") == "imported_song"
     assert sanitize_song_name("   ") == "imported_song"
     assert sanitize_song_name("???***///") == "imported_song"
-    assert sanitize_song_name("Neon_Pulse_2024") == "Neon_Pulse_2024"
+    assert sanitize_song_name("Neon_Pulse_2024") == "Neon Pulse 2024"
 
     sections = [BPMSection(startTime=0.0, startBeat=0.0, bpm=128.0)]
     meta = generate_metadata(raw_title, sections)

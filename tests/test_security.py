@@ -127,12 +127,12 @@ def test_sanitize_song_title_and_upload_filename():
     from audio_analysis.security import sanitize_song_title, sanitize_upload_filename
 
     assert sanitize_song_title("Canción de Verano (Éxitos 2024!) #1") == "Cancion de Verano Exitos 2024 1"
-    assert sanitize_song_title("AC/DC - Highway to Hell?!* [Live]") == "AC DC - Highway to Hell Live"
-    assert sanitize_song_title("La Cumbia - Bukano") == "La Cumbia - Bukano"
+    assert sanitize_song_title("AC/DC - Highway to Hell?!* [Live]") == "AC DC Highway to Hell Live"
+    assert sanitize_song_title("La Cumbia - Bukano") == "La Cumbia Bukano"
     assert sanitize_song_title("!@#$%^&*()_+") == "Song"
     assert sanitize_song_title("") == "Song"
     assert sanitize_song_title("   ") == "Song"
 
     assert sanitize_upload_filename("Canción (2024!).mp3") == "Cancion 2024.mp3"
-    assert sanitize_upload_filename("audio_track#1.flac") == "audio_track 1.flac"
-    assert sanitize_upload_filename("invalid_ext.exe") == "invalid_ext.mp3"
+    assert sanitize_upload_filename("audio_track#1.flac") == "audio track 1.flac"
+    assert sanitize_upload_filename("invalid_ext.exe") == "invalid ext.mp3"

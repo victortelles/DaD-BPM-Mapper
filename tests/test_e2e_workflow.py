@@ -131,7 +131,7 @@ def test_full_v2_pipeline_e2e(tmp_path: Path) -> None:
     # 5. Native 16-field Meta.json + audio.ogg ZIP and directory export
     raw_title = "Neon Rave: Act I / Part 1"
     clean_folder = sanitize_song_name(raw_title)
-    assert clean_folder == "Neon_Rave__Act_I___Part_1"
+    assert clean_folder == "Neon Rave Act I Part 1"
 
     meta = generate_metadata(
         song_name=raw_title,

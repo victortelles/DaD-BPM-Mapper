@@ -137,16 +137,16 @@ def compute_audio_md5(data: bytes) -> str:
 
 
 def sanitize_song_title(raw_name: str) -> str:
-    """Strip special characters from a song title, leaving only clean ASCII text, digits, spaces, and hyphens.
+    """Strip all special characters from a song title, leaving only clean text, digits, and spaces.
 
-    Normalizes unicode accents (e.g. 'Canción' -> 'Cancion'), removes emojis, symbols, brackets,
-    parentheses, slashes, and punctuation, and collapses multiple spaces.
+    Normalizes unicode accents (e.g. 'Canción' -> 'Cancion'), removes emojis, symbols, punctuation,
+    hyphens, underscores, colons, brackets, and collapses multiple spaces.
     """
     if not raw_name or not isinstance(raw_name, str):
         return "Song"
     normalized = unicodedata.normalize("NFKD", raw_name)
     ascii_clean = "".join(c for c in normalized if not unicodedata.combining(c))
-    cleaned = re.sub(r"[^a-zA-Z0-9_\-\s]", " ", ascii_clean)
+    cleaned = re.sub(r"[^a-zA-Z0-9\s]", " ", ascii_clean)
     cleaned = re.sub(r"\s+", " ", cleaned).strip()
     if not re.search(r"[a-zA-Z0-9]", cleaned):
         return "Song"

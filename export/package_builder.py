@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any, List, Optional, Union
 
 from audio_analysis.bpm_sections import recalculate_beats, validate_sections
-from audio_analysis.security import compute_audio_md5
+from audio_analysis.security import compute_audio_md5, sanitize_song_title
 from models.song_metadata import (
     AnalyseResult,
     BPMSection,
@@ -62,11 +62,11 @@ class ImportedSongEntry(tuple):
 
 
 def sanitize_song_name(raw_name: str) -> str:
-    """Sanitize song title into a Windows/POSIX filesystem-safe folder identifier."""
-    if not raw_name or not raw_name.strip():
+    """Sanitize song title into a Windows/POSIX filesystem-safe folder identifier without special characters."""
+    if not raw_name or not isinstance(raw_name, str):
         return "imported_song"
-    sanitized = re.sub(r"[^a-zA-Z0-9_]", "_", raw_name)
-    return sanitized if sanitized.strip("_") else "imported_song"
+    cleaned = sanitize_song_title(raw_name)
+    return cleaned if (cleaned and cleaned != "Song") else "imported_song"
 
 
 sanitize_folder_name = sanitize_song_name
@@ -77,7 +77,8 @@ def get_game_imported_songs_dir() -> Path:
     local_app_data = os.environ.get("LOCALAPPDATA", "")
     if local_app_data:
         return Path(local_app_data) / "Pagoda" / "Saved" / "ImportedSongs"
-    return Path.home() / "AppData" / "Local" / "Pagoda" / "Saved" / "ImportedSongs"
+    username = os.environ.get("USERNAME") or os.environ.get("USER") or "User"
+    return Path(f"C:/Users/{username}/AppData/Local/Pagoda/Saved/ImportedSongs")
 
 
 def _resolve_audio_entry_name(audio_filename: Optional[str] = None, audio_ext: Optional[str] = None) -> str:
@@ -145,7 +146,18 @@ def generate_metadata(
     else:
         file_hash = hashlib.md5(display_name.encode("utf-8")).hexdigest()
     safe_folder = sanitize_song_name(display_name)
-    file_path = original_audio_path or original_filename or (audio_filename if isinstance(audio_filename, str) else None) or f"{safe_folder}/audio.ogg"
+    game_song_dir = get_game_imported_songs_dir()
+    default_game_path = f"{game_song_dir}/{safe_folder}/audio.ogg".replace("\\", "/")
+
+    if original_audio_path:
+        file_path = str(original_audio_path).replace("\\", "/")
+    elif original_filename and ("/" in str(original_filename) or "\\" in str(original_filename) or ":" in str(original_filename)):
+        file_path = str(original_filename).replace("\\", "/")
+    elif isinstance(audio_filename, str) and ("/" in audio_filename or "\\" in audio_filename or ":" in audio_filename):
+        file_path = str(audio_filename).replace("\\", "/")
+    else:
+        file_path = default_game_path
+
     uid = int(unique_id) if unique_id is not None else (zlib.crc32(display_name.encode("utf-8")) & 0xFFFFFFFF)
     rng_seed = int(seed) if seed is not None else (zlib.crc32((file_hash + display_name).encode("utf-8")) & 0xFFFFFFFF)
     return SongMetadata(

@@ -174,6 +174,26 @@ def snap_to_nearest_transient(
     return round(float(exact_time), 3)
 
 
+def normalize_bpm_octave(
+    bpm: float,
+    min_bpm: float = 42.0,
+    max_bpm: float = 205.0,
+) -> float:
+    """Normalize a tempo into the playable rhythmic human octave [min_bpm, max_bpm].
+
+    Harmonic subdivisions (e.g. 200-320 BPM from 16th-note trap hi-hats) are halved
+    back to their true fundamental tempo (100-160 BPM).
+    """
+    if bpm <= 0.0 or not np.isfinite(bpm):
+        return 120.0
+    val = float(bpm)
+    while val > max_bpm:
+        val /= 2.0
+    while val < min_bpm and val > 0.0:
+        val *= 2.0
+    return round(val, 2)
+
+
 def estimate_local_bpm_at_time(
     y: np.ndarray,
     sr: int,
@@ -210,10 +230,10 @@ def estimate_local_bpm_at_time(
         chunk = y[start_sample:end_sample]
 
     if len(chunk) < int(sr * 1.0):
-        global_tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
+        global_tempo, _ = librosa.beat.beat_track(y=y, sr=sr, start_bpm=120.0)
         arr = np.atleast_1d(global_tempo)
         bpm_val = float(arr[0]) if len(arr) > 0 and float(arr[0]) > 0 else 120.0
-        return round(snapped_time, 3), round(float(np.clip(bpm_val, 30.0, 300.0)), 2)
+        return round(snapped_time, 3), normalize_bpm_octave(bpm_val)
 
     try:
         chunk_onset = librosa.onset.onset_strength(y=chunk, sr=sr)
@@ -224,7 +244,7 @@ def estimate_local_bpm_at_time(
     except Exception:
         bpm_val = 120.0
 
-    return round(snapped_time, 3), round(float(np.clip(bpm_val, 30.0, 300.0)), 2)
+    return round(snapped_time, 3), normalize_bpm_octave(bpm_val)
 
 
 def calculate_bpm_from_peaks(
@@ -293,7 +313,7 @@ def calculate_bpm_from_peaks(
         if final_bpm <= 0.0 or not np.isfinite(final_bpm):
             final_bpm = 120.0
 
-        return round(float(np.clip(final_bpm, 30.0, 300.0)), 2)
+        return normalize_bpm_octave(final_bpm)
     except Exception:
         return 120.0
 
@@ -305,4 +325,5 @@ __all__ = [
     "snap_to_nearest_transient",
     "estimate_local_bpm_at_time",
     "calculate_bpm_from_peaks",
+    "normalize_bpm_octave",
 ]

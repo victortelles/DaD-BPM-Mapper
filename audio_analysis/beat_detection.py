@@ -13,33 +13,28 @@ from .dsp_peaks import (
     downsample_waveform,
     estimate_local_bpm_at_time,
     load_audio,
+    normalize_bpm_octave,
     snap_to_nearest_transient,
 )
 from .exceptions import AudioProcessingError, InsufficientAudioSignalError
 
 
 def detect_beat_offset_ms(y: np.ndarray, sr: int) -> int:
-    """Detect the first prominent rhythmic onset/downbeat and return its timestamp in milliseconds.
-
-    Args:
-        y: Audio waveform array.
-        sr: Sample rate in Hz.
-
-    Returns:
-        Non-negative integer timestamp in milliseconds (e.g. 0, 38, 320).
-    """
+    """Detect the first prominent rhythmic onset/downbeat and return its timestamp in milliseconds."""
     if y is None or len(y) == 0 or sr <= 0:
         return 0
 
     from scipy.signal import find_peaks
 
-    head_samples = min(len(y), int(sr * 15.0))
-    abs_y = np.abs(y[:head_samples])
+    head_samples = min(len(y), int(sr * 8.0))
+    head_y = y[:head_samples]
+    abs_y = np.abs(head_y)
     max_amp = float(np.max(abs_y))
     if max_amp < 1e-4:
         return 0
 
-    peaks, _ = find_peaks(abs_y, height=max_amp * 0.30, distance=max(1, int(sr * 0.05)))
+    thresh = max(1e-3, max_amp * 0.08)
+    peaks, _ = find_peaks(abs_y, height=thresh, distance=max(1, int(sr * 0.05)))
     first_peak = int(peaks[0]) if len(peaks) > 0 else int(np.argmax(abs_y))
 
     attack_lookback = max(1, int(sr * 0.015))
@@ -174,8 +169,9 @@ def detect_tempo_sections(
         raise InsufficientAudioSignalError("No rhythmic transients were found in the audio signal.")
 
     try:
-        global_tempo, beat_frames = librosa.beat.beat_track(y=y, sr=sr, onset_envelope=onset_env)
-        global_bpm = float(np.atleast_1d(global_tempo)[0])
+        global_tempo, beat_frames = librosa.beat.beat_track(y=y, sr=sr, onset_envelope=onset_env, start_bpm=120.0)
+        raw_tempo = float(np.atleast_1d(global_tempo)[0])
+        global_bpm = normalize_bpm_octave(raw_tempo)
     except Exception as exc:
         raise AudioProcessingError(f"Beat tracking analysis failed: {exc}") from exc
 
@@ -229,7 +225,7 @@ def detect_tempo_sections(
             if len(valid_ibis) >= 2:
                 med_ibi = float(np.median(valid_ibis))
                 cv_ibi = float(np.std(valid_ibis) / max(1e-6, np.mean(valid_ibis)))
-                ibi_bpm = float(60.0 / med_ibi)
+                ibi_bpm = normalize_bpm_octave(float(60.0 / med_ibi))
                 interval_rate = float(1.0 / med_ibi)
                 clean_ibi = cv_ibi <= 0.22
 
@@ -240,7 +236,7 @@ def detect_tempo_sections(
                 valid_tempi = dyn_tempi[mask]
                 valid_tempi = valid_tempi[(valid_tempi >= 20.0) & (valid_tempi <= 400.0)]
                 if len(valid_tempi) > 0:
-                    dyn_bpm = float(np.median(valid_tempi))
+                    dyn_bpm = normalize_bpm_octave(float(np.median(valid_tempi)))
 
         if clean_ibi and ibi_bpm is not None:
             raw_bpm = ibi_bpm
@@ -277,31 +273,18 @@ def detect_tempo_sections(
     if bpm_span < min_bpm_change and not has_dynamic_variation:
         return recalculate_beats([BPMSection(startTime=0.0, startBeat=0.0, bpm=round(global_bpm, 2))])
 
-    if all(p[4] for p in window_profiles):
-        base_bpm = raw_bpms[0] if (65.0 <= raw_bpms[0] <= 165.0) else min(raw_bpms, key=lambda b: abs(b - global_bpm))
-    else:
-        base_bpm = global_bpm
-
-    med_rms = max(1e-6, float(np.median(rms_vals)))
-    med_onset = max(1e-6, float(np.median(onset_rates)))
+    base_bpm = global_bpm
     window_tempos: List[Tuple[float, float, bool]] = []
 
     for cand_time, raw_bpm, local_rms, onset_rate, clean_ibi in window_profiles:
-        if abs(raw_bpm - base_bpm * 0.5) <= max(4.0, base_bpm * 0.06) and base_bpm * 0.5 >= 40.0:
-            eff_bpm, preserve_exact = round(base_bpm * 0.5, 2), True
-        elif abs(raw_bpm - base_bpm * 2.0) <= max(6.0, base_bpm * 0.06) and base_bpm * 2.0 <= 250.0:
-            eff_bpm, preserve_exact = round(base_bpm * 2.0, 2), True
+        if abs(raw_bpm - base_bpm * 0.5) <= max(4.0, base_bpm * 0.06) and base_bpm * 0.5 >= 42.0:
+            eff_bpm, preserve_exact = normalize_bpm_octave(base_bpm * 0.5), True
+        elif abs(raw_bpm - base_bpm * 2.0) <= max(6.0, base_bpm * 0.06) and base_bpm * 2.0 <= 205.0:
+            eff_bpm, preserve_exact = normalize_bpm_octave(base_bpm * 2.0), True
         elif abs(raw_bpm - base_bpm) >= max(min_bpm_change, base_bpm * 0.10 if not clean_ibi else min_bpm_change):
-            eff_bpm, preserve_exact = round(raw_bpm, 2), clean_ibi
-        elif has_dynamic_variation:
-            if (onset_rate >= 1.45 * med_onset or (local_rms >= 1.35 * med_rms and onset_rate >= 1.10 * med_onset)) and base_bpm * 2.0 <= 240.0:
-                eff_bpm, preserve_exact = round(base_bpm * 2.0, 2), True
-            elif (onset_rate <= 0.65 * med_onset or (local_rms <= 0.65 * med_rms and onset_rate <= 1.05 * med_onset)) and base_bpm * 0.5 >= 42.0:
-                eff_bpm, preserve_exact = round(base_bpm * 0.5, 2), True
-            else:
-                eff_bpm, preserve_exact = round(base_bpm, 2), True
+            eff_bpm, preserve_exact = normalize_bpm_octave(raw_bpm), clean_ibi
         else:
-            eff_bpm, preserve_exact = round(base_bpm, 2), True
+            eff_bpm, preserve_exact = normalize_bpm_octave(base_bpm), True
         window_tempos.append((cand_time, eff_bpm, preserve_exact))
 
     eff_bpms_only = [t[1] for t in window_tempos]
