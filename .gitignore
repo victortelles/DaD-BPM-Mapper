@@ -62,5 +62,7 @@ desktop.ini
 *.swp
 *~
 
-# Agent artifacts
+# Agent & Playwright artifacts
 .atl/
+.playwright-cli/
+example-music/
