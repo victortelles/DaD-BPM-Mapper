@@ -1,31 +1,52 @@
-"""Custom exception types for audio analysis, validation, and conversion."""
+"""Custom exception types for audio security validation, DSP analysis, and transcoding."""
 
 
 class AudioAnalysisError(Exception):
-    """Base exception for all audio analysis errors."""
+    """Base exception for all audio analysis and processing errors."""
     pass
 
 
 class AudioProcessingError(AudioAnalysisError):
-    """Raised when an audio file cannot be loaded, decoded, or is corrupted."""
+    """Raised when an audio file cannot be loaded, decoded, or processed."""
     pass
 
 
-class InsufficientAudioSignalError(AudioAnalysisError):
+class SecurityValidationError(AudioProcessingError):
+    """Raised when an uploaded file fails extension, size, or binary magic-byte checks."""
+    pass
+
+
+# Alias matching spec terminology
+AudioSecurityError = SecurityValidationError
+
+
+class InsufficientAudioSignalError(AudioProcessingError):
     """Raised when an audio file is silent or contains insufficient transient signal for beat tracking."""
     pass
 
 
-class ValidationError(AudioAnalysisError):
-    """Raised when BPM section parameters or constraints are violated."""
+class ValidationError(AudioProcessingError):
+    """Raised when song metadata or BPM section invariants are violated."""
     pass
 
 
-class DependencyError(Exception):
+class DependencyError(AudioProcessingError):
     """Raised when an external system dependency (such as FFmpeg) is missing."""
     pass
 
 
-class TranscodingError(Exception):
-    """Raised when FFmpeg transcoding process fails or exits with an error."""
+class TranscodingError(AudioProcessingError):
+    """Raised when audio transcoding or resampling fails."""
     pass
+
+
+__all__ = [
+    "AudioAnalysisError",
+    "AudioProcessingError",
+    "SecurityValidationError",
+    "AudioSecurityError",
+    "InsufficientAudioSignalError",
+    "ValidationError",
+    "DependencyError",
+    "TranscodingError",
+]
