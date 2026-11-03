@@ -39,7 +39,7 @@ def render_live_waveform_player(
         **kwargs: Additional keyword arguments (e.g. beat_offset_ms).
     """
     if audio_bytes is None:
-        st.warning("No se proporcionaron datos de audio para el reproductor.")
+        st.warning("No se proporcionaron datos de audio para el reproductor.", icon=":material/warning:")
         return
 
     if hasattr(audio_bytes, "getvalue"):
@@ -48,11 +48,11 @@ def render_live_waveform_player(
         audio_bytes = audio_bytes.read()
 
     if not isinstance(audio_bytes, (bytes, bytearray)):
-        st.error("Formato de audio no válido para el reproductor.")
+        st.error("Formato de audio no válido para el reproductor.", icon=":material/error:")
         return
 
     if y is None or sr is None or sr <= 0 or len(y) == 0:
-        st.warning("Datos de forma de onda no disponibles.")
+        st.warning("Datos de forma de onda no disponibles.", icon=":material/warning:")
         return
 
     resolved_theme = (

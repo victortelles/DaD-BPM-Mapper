@@ -1,14 +1,15 @@
-"""Playwright automated screenshot capture and Pillow annotation for the v2 Visual Guide."""
+"""Playwright automated screenshot capture and high-contrast Pillow annotation for the v2 Visual Guide."""
 
 from __future__ import annotations
 
+import re
 import subprocess
 import sys
 import tempfile
 import time
 import urllib.request
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 import numpy as np
 import soundfile as sf
@@ -60,37 +61,52 @@ def _annotate_image(
     img_path: Path,
     step_badge: str,
     step_sub: str,
-    callouts: List[Tuple[int, int, str, str]],
+    callouts: List[Tuple[int, int, str, str, Optional[Tuple[int, int, int, int]]]],
 ) -> None:
-    """Draw clean studio callout badges on a captured screenshot using Pillow."""
+    """Draw high-contrast red-bordered callout badges and focus frames on a captured screenshot."""
     img = Image.open(img_path).convert("RGBA")
-    overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    w, h = img.size
+    overlay = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     draw = ImageDraw.Draw(overlay)
 
     try:
-        font_bold = ImageFont.truetype("segoeuib.ttf", 14)
-        font_reg = ImageFont.truetype("segoeui.ttf", 12)
+        font_badge = ImageFont.truetype("segoeuib.ttf", 16)
+        font_title = ImageFont.truetype("segoeuib.ttf", 16)
+        font_sub = ImageFont.truetype("segoeuib.ttf", 13)
+        font_num = ImageFont.truetype("segoeuib.ttf", 16)
     except OSError:
-        font_bold = ImageFont.load_default()
-        font_reg = ImageFont.load_default()
+        font_badge = ImageFont.load_default()
+        font_title = ImageFont.load_default()
+        font_sub = ImageFont.load_default()
+        font_num = ImageFont.load_default()
 
-    # Top-left step pill (keeps top-right theme toggle button and BPM badge completely clear)
-    w, _ = img.size
-    pill_box = (18, 12, 390, 50)
-    draw.rounded_rectangle(pill_box, radius=18, fill=(15, 23, 42, 235), outline=(56, 189, 248, 255), width=2)
-    draw.rounded_rectangle((24, 17, 140, 45), radius=14, fill=(2, 132, 199, 255))
-    draw.text((34, 22), step_badge, fill=(248, 250, 252, 255), font=font_bold)
-    draw.text((152, 23), step_sub, fill=(186, 230, 253, 255), font=font_reg)
+    # Red outer canvas border
+    draw.rectangle((0, 0, w - 1, h - 1), outline=(239, 68, 68, 255), width=5)
 
-    for idx, (cx, cy, title, subtitle) in enumerate(callouts, start=1):
-        box_w, box_h = 355, 50
-        bx0, by0 = max(16, min(w - box_w - 16, cx)), max(60, cy)
+    # Top-left high-contrast step header banner with red border
+    pill_box = (18, 12, 420, 56)
+    draw.rounded_rectangle(pill_box, radius=12, fill=(15, 23, 42, 245), outline=(239, 68, 68, 255), width=3)
+    draw.rounded_rectangle((24, 18, 155, 50), radius=8, fill=(239, 68, 68, 255))
+    draw.text((32, 24), step_badge, fill=(255, 255, 255, 255), font=font_badge)
+    draw.text((168, 24), step_sub, fill=(248, 250, 252, 255), font=font_title)
+
+    for idx, (cx, cy, title, subtitle, target_rect) in enumerate(callouts, start=1):
+        # Draw red highlight focus frame if target_rect is specified
+        if target_rect:
+            tx0, ty0, tx1, ty1 = target_rect
+            draw.rounded_rectangle((tx0, ty0, tx1, ty1), radius=8, outline=(239, 68, 68, 255), width=4, fill=(239, 68, 68, 28))
+            draw.ellipse((tx0 - 14, ty0 - 14, tx0 + 18, ty0 + 18), fill=(239, 68, 68, 255), outline=(255, 255, 255, 255), width=2)
+            draw.text((tx0 - 6, ty0 - 8), str(idx), fill=(255, 255, 255, 255), font=font_num)
+
+        # Draw red-bordered explanation card
+        box_w, box_h = 425, 58
+        bx0, by0 = max(16, min(w - box_w - 16, cx)), max(65, cy)
         bx1, by1 = bx0 + box_w, by0 + box_h
-        draw.rounded_rectangle((bx0, by0, bx1, by1), radius=12, fill=(15, 23, 42, 238), outline=(56, 189, 248, 255), width=2)
-        draw.ellipse((bx0 + 10, by0 + 11, bx0 + 38, by0 + 39), fill=(2, 132, 199, 255), outline=(56, 189, 248, 255), width=2)
-        draw.text((bx0 + 20, by0 + 16), str(idx), fill=(255, 255, 255, 255), font=font_bold)
-        draw.text((bx0 + 48, by0 + 8), title, fill=(248, 250, 252, 255), font=font_bold)
-        draw.text((bx0 + 48, by0 + 27), subtitle, fill=(148, 163, 184, 255), font=font_reg)
+        draw.rounded_rectangle((bx0, by0, bx1, by1), radius=10, fill=(15, 23, 42, 245), outline=(239, 68, 68, 255), width=3)
+        draw.ellipse((bx0 + 10, by0 + 12, bx0 + 40, by0 + 42), fill=(239, 68, 68, 255), outline=(255, 255, 255, 255), width=2)
+        draw.text((bx0 + 19, by0 + 17), str(idx), fill=(255, 255, 255, 255), font=font_num)
+        draw.text((bx0 + 48, by0 + 9), title, fill=(255, 255, 255, 255), font=font_title)
+        draw.text((bx0 + 48, by0 + 31), subtitle, fill=(254, 240, 138, 255), font=font_sub)
 
     combined = Image.alpha_composite(img, overlay).convert("RGB")
     combined.save(img_path, format="PNG", optimize=True)
@@ -137,55 +153,55 @@ def capture_all_screenshots() -> None:
                 page.wait_for_timeout(1500)
 
                 # Navigate back to Step 1 to capture the completed upload + metrics summary state
-                page.get_by_role("button", name="1️⃣ Subir Canción").click()
+                page.get_by_role("button", name=re.compile(r"Paso 1: Subir canción", re.I)).first.click()
                 page.wait_for_selector("text=Canción lista", timeout=15000)
                 page.wait_for_timeout(1000)
                 step1_path = GUIDE_DIR / "step1_upload.png"
                 page.screenshot(path=str(step1_path), clip={"x": 0, "y": 0, "width": 1440, "height": 1340})
                 _annotate_image(
                     step1_path,
-                    "GUÍA PASO 1",
+                    "PASO 1 DE 4",
                     "Subida Segura + Auto-BPM",
                     [
-                        (560, 62, "1. Modo Oscuro / Claro", "Alterna entre el tema nocturno (#020617) y claro"),
-                        (910, 745, "2. Subida con Firewall Binario", "Valida magic bytes (.mp3/.wav/.ogg/.flac) y MD5"),
-                        (910, 1020, "3. Resumen y Avance Directo", "Muestra BPM, secciones detectadas y pasa al Paso 2"),
+                        (540, 68, "1. Modo Oscuro / Claro", "Alterna entre el tema oscuro y claro", (1220, 16, 1420, 60)),
+                        (890, 745, "2. Subida con Firewall Binario", "Valida magic bytes (.mp3/.wav/.ogg/.flac) y MD5", (140, 650, 1300, 840)),
+                        (890, 1020, "3. Resumen y Avance Directo", "Muestra BPM, secciones detectadas y pasa al Paso 2", (140, 870, 1300, 1070)),
                     ],
                 )
 
                 # Advance to Step 2 and capture the Live Waveform Player + Multi-Tempo Strip + Optional Expander
-                page.get_by_role("button", name="2️⃣ Escuchar y Verificar").click()
+                page.get_by_role("button", name=re.compile(r"Paso 2: Escuchar y verificar", re.I)).first.click()
                 page.wait_for_selector("text=Paso 2 de 3", timeout=15000)
                 page.wait_for_timeout(2000)
                 step2_path = GUIDE_DIR / "step2_sync.png"
                 page.screenshot(path=str(step2_path), clip={"x": 0, "y": 0, "width": 1440, "height": 1520})
                 _annotate_image(
                     step2_path,
-                    "GUÍA PASO 2",
+                    "PASO 2 DE 4",
                     "Onda DAW + Metrónomo",
                     [
-                        (910, 665, "1. Reproductor DAW en Vivo", "Rueda: Zoom · Shift+Arrastrar: Mover · Metrónomo"),
-                        (910, 1110, "2. Banderas Multi-Tempo", "Salta entre secciones (Base, Lento 0.5x, Rápido 2x)"),
-                        (910, 1340, "3. Continuar o Ajuste Manual", "Avanza directo al Paso 3 o abre el editor opcional"),
+                        (890, 665, "1. Reproductor DAW en Vivo", "Rueda: Zoom · Shift+Arrastrar: Mover · Metrónomo", (140, 480, 1300, 780)),
+                        (890, 1110, "2. Banderas Multi-Tempo", "Salta entre secciones (Base, Lento 0.5x, Rápido 2x)", (140, 790, 1300, 930)),
+                        (890, 1340, "3. Continuar o Ajuste Manual", "Avanza directo al Paso 3 o abre el editor opcional", (140, 940, 1300, 1060)),
                     ],
                 )
 
                 # Advance to Step 3, generate the .ZIP package, and capture export view
-                page.get_by_role("button", name="3️⃣ Descargar Mod (.ZIP)").click()
+                page.get_by_role("button", name=re.compile(r"Paso 3: Descargar mod", re.I)).first.click()
                 page.wait_for_selector("text=Paso 3 de 3", timeout=15000)
-                page.get_by_role("button", name="📦 Generar y Descargar Paquete (.ZIP)").click()
+                page.get_by_role("button", name=re.compile(r"Generar y Descargar Paquete", re.I)).first.click()
                 page.wait_for_selector("text=Guardar Archivo", timeout=30000)
                 page.wait_for_timeout(1000)
                 step3_path = GUIDE_DIR / "step3_export.png"
                 page.screenshot(path=str(step3_path), clip={"x": 0, "y": 0, "width": 1440, "height": 1340})
                 _annotate_image(
                     step3_path,
-                    "GUÍA PASO 3",
+                    "PASO 3 DE 4",
                     "Empaquetador OGG + Meta.json",
                     [
-                        (910, 625, "1. Título y Artista del Mod", "Configura songName e intérprete para Dead as Disco"),
-                        (910, 885, "2. Descarga .ZIP Lista", "Incluye <Canción>/audio.ogg (44.1 kHz) + Meta.json"),
-                        (910, 1085, "3. Instalación en 3 Pasos", "Pega %localappdata%\\Pagoda\\Saved\\ImportedSongs\\"),
+                        (890, 625, "1. Título y Artista del Mod", "Configura songName e intérprete para Dead as Disco", (140, 390, 1300, 550)),
+                        (890, 885, "2. Descarga .ZIP Lista", "Incluye <Canción>/audio.ogg (44.1 kHz) + Meta.json", (140, 560, 1300, 700)),
+                        (890, 1085, "3. Instalación en 3 Pasos", "Pega %localappdata%\\Pagoda\\Saved\\ImportedSongs\\", (140, 715, 1300, 970)),
                     ],
                 )
 

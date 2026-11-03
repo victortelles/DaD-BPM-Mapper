@@ -65,4 +65,6 @@ desktop.ini
 # Agent & Playwright artifacts
 .atl/
 .playwright-cli/
+.agents/
+.claude/
 example-music/

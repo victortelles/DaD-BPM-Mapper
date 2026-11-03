@@ -93,3 +93,18 @@ def test_core_modules_standalone_import_without_circular_dependencies() -> None:
         check=False,
     )
     assert proc.returncode == 0, f"Standalone core import failed:\nSTDOUT: {proc.stdout}\nSTDERR: {proc.stderr}"
+
+
+def test_zero_emojis_in_ui_and_app() -> None:
+    """Per Streamlit best practices (SKILL.md), UI must use Material Symbols icons rather than emojis."""
+    import re
+
+    emoji_pattern = re.compile(r"[\U0001F300-\U0001FAFF\u2600-\u27BF]")
+    targets = [REPO_ROOT / "app.py"] + list((REPO_ROOT / "ui").glob("*.py"))
+    violations = []
+    for path in targets:
+        if path.is_file():
+            matches = set(emoji_pattern.findall(path.read_text(encoding="utf-8")))
+            if matches:
+                violations.append(f"{path.name}: found emojis {matches}")
+    assert not violations, "Emojis found in UI code:\n" + "\n".join(violations)

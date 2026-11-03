@@ -40,7 +40,7 @@ def render_offset_controls(
     c1, c2, c3 = st.columns(3)
     with c1:
         new_beat_offset = st.number_input(
-            "Desfase del Primer Pulso · Beat Offset (ms)",
+            "Desfase del primer pulso · Beat Offset (ms)",
             min_value=0,
             max_value=60000,
             value=max(0, int(round(float(beat_offset_ms)))),
@@ -50,7 +50,7 @@ def render_offset_controls(
         )
     with c2:
         new_start_offset = st.number_input(
-            "Inicio de Canción (s)",
+            "Inicio de canción (s)",
             min_value=0.0,
             max_value=max_dur,
             value=min(max_dur, max(0.0, float(start_offset_s))),
@@ -61,7 +61,7 @@ def render_offset_controls(
         )
     with c3:
         new_end_offset = st.number_input(
-            "Fin de Canción (s)",
+            "Fin de canción (s)",
             min_value=0.0,
             max_value=max_dur,
             value=min(max_dur, max(0.0, float(end_offset_s))),
@@ -84,10 +84,10 @@ def render_quick_peak_sync(
     max_dur = max(1.0, float(audio_duration))
 
     with st.container(border=True):
-        st.markdown("**⚡ Sincronizador Rápido en Pico (Auto-BPM)**")
+        st.markdown("**:material/bolt: Sincronizador rápido en pico (:material/my_location: Auto-BPM)**")
         st.caption(
-            "Opcional: Si la canción cambia de velocidad en un segundo específico, escríbelo aquí "
-            "(puedes usar el botón 📋 Copiar Tiempo del reproductor) y el sistema calculará el nuevo BPM en ese pico."
+            "Opcional: Si la canción cambia de velocidad en un segundo específico (:material/timer:), escríbelo aquí "
+            "(puedes usar el botón Copiar Tiempo del reproductor) y el sistema calculará el nuevo BPM en ese pico."
         )
         qc_col1, qc_col2, qc_col3 = st.columns([2.0, 1.3, 1.3])
         with qc_col1:
@@ -102,7 +102,7 @@ def render_quick_peak_sync(
             )
         with qc_col2:
             qc_manual_bpm = st.number_input(
-                "BPM (0 = Calcular Auto)",
+                "BPM (0 = calcular auto)",
                 min_value=0.0,
                 max_value=400.0,
                 value=0.0,
@@ -113,10 +113,10 @@ def render_quick_peak_sync(
         with qc_col3:
             st.write("")
             if st.button(
-                "Fijar Bandera en Pico",
+                "Fijar bandera en pico",
                 key="btn_qc_apply",
-                icon=":material/auto_fix_high:",
-                use_container_width=True,
+                icon=":material/my_location:",
+                width="stretch",
                 type="primary",
             ):
                 try:
@@ -133,10 +133,13 @@ def render_quick_peak_sync(
 
                     if qc_manual_bpm <= 0.0 and y is not None and sr is not None:
                         updated = recalculate_all_bpms_from_peaks(updated, y, sr)
-                    st.success(f"Bandera sincronizada en {snapped_t:.3f}s ({est_bpm:.1f} BPM).")
+                    st.success(
+                        f"Bandera sincronizada en {snapped_t:.3f}s ({est_bpm:.1f} BPM).",
+                        icon=":material/check_circle:",
+                    )
                     return updated
                 except ValidationError as err:
-                    st.error(f"No se pudo fijar la bandera: {err}")
+                    st.error(f"No se pudo fijar la bandera: {err}", icon=":material/warning:")
 
     return current_sections
 
@@ -158,7 +161,10 @@ def render_flag_editor(
 
     # 2. Batch & Management Tabs
     tab_batch, tab_manage = st.tabs(
-        ["➕ Agregar Varias Banderas por Segundo", "🔧 Recalcular Picos / Eliminar Bandera"]
+        [
+            ":material/add_circle: Agregar varias banderas por segundo",
+            ":material/refresh: Recalcular picos / Eliminar bandera",
+        ]
     )
 
     with tab_batch:
@@ -171,17 +177,24 @@ def render_flag_editor(
             )
         with cb2:
             st.write("")
-            if st.button("Colocar Todas", key="btn_batch_add", icon=":material/bolt:", use_container_width=True):
+            if st.button("Colocar todas", key="btn_batch_add", icon=":material/bolt:", width="stretch"):
                 raw_parts = [p.strip() for p in batch_str.replace(";", ",").split(",") if p.strip()]
                 try:
                     valid_t = [float(p) for p in raw_parts if 0.05 < float(p) < max_dur]
                     if not valid_t:
-                        st.warning(f"Ingresa tiempos entre 0.1s y {max_dur:.1f}s.")
+                        st.warning(
+                            f"Ingresa tiempos entre 0.1s y {max_dur:.1f}s.",
+                            icon=":material/warning:",
+                        )
                     else:
                         temp_secs = list(current_sections)
                         added = 0
                         for t in sorted(valid_t):
-                            snapped = snap_to_nearest_transient(t, y, sr) if (y is not None and sr is not None) else round(t, 3)
+                            snapped = (
+                                snap_to_nearest_transient(t, y, sr)
+                                if (y is not None and sr is not None)
+                                else round(t, 3)
+                            )
                             if any(abs(s.startTime - snapped) < 0.25 for s in temp_secs):
                                 continue
                             temp_secs.append(BPMSection(startTime=snapped, startBeat=0.0, bpm=120.0))
@@ -193,24 +206,33 @@ def render_flag_editor(
                                 if (y is not None and sr is not None)
                                 else recalculate_beats(temp_secs)
                             )
-                            st.success(f"{added} banderas colocadas y sincronizadas.")
+                            st.success(
+                                f"{added} banderas colocadas y sincronizadas.",
+                                icon=":material/check_circle:",
+                            )
                             return updated
-                        st.info("Los tiempos ingresados ya coinciden con banderas existentes.")
+                        st.info(
+                            "Los tiempos ingresados ya coinciden con banderas existentes.",
+                            icon=":material/timer:",
+                        )
                 except ValueError as exc:
-                    st.error(f"Formato inválido: {exc}")
+                    st.error(f"Formato inválido: {exc}", icon=":material/warning:")
 
     with tab_manage:
         cm1, cm2 = st.columns(2)
         with cm1:
             if y is not None and sr is not None and current_sections:
                 if st.button(
-                    "Recalcular Todos los BPMs desde Picos",
+                    "Recalcular todos los BPMs desde picos",
                     key="btn_recalc_all_peaks",
-                    icon=":material/auto_fix_high:",
-                    use_container_width=True,
+                    icon=":material/refresh:",
+                    width="stretch",
                 ):
                     updated = recalculate_all_bpms_from_peaks(current_sections, y, sr)
-                    st.success(f"{len(updated)} secciones sincronizadas con los picos acústicos.")
+                    st.success(
+                        f"{len(updated)} secciones sincronizadas con los picos acústicos.",
+                        icon=":material/check_circle:",
+                    )
                     return updated
         with cm2:
             if len(current_sections) > 1:
@@ -226,13 +248,18 @@ def render_flag_editor(
                     key="select_flag_to_delete",
                     label_visibility="collapsed",
                 )
-                if st.button("Eliminar Bandera Seleccionada", key="btn_del_flag", icon=":material/delete:", use_container_width=True):
+                if st.button(
+                    "Eliminar bandera seleccionada",
+                    key="btn_del_flag",
+                    icon=":material/delete:",
+                    width="stretch",
+                ):
                     return delete_marker(current_sections, sel_del)
             else:
                 st.caption("Solo existe la bandera base inicial (0:00).")
 
     # 3. Editable Sections Table
-    st.markdown("**📋 Tabla de Banderas de Tempo (puedes editar el Tiempo o el BPM haciendo doble clic):**")
+    st.markdown("**:material/show_chart: Tabla de banderas de tempo (puedes editar el Tiempo o el BPM haciendo doble clic):**")
     df = pd.DataFrame(
         [
             {
@@ -258,7 +285,7 @@ def render_flag_editor(
             "Base Inicial": st.column_config.CheckboxColumn("Base Inicial", disabled=True),
         },
         disabled=["Bandera #", "Min:Seg", "Beat Inicial", "Base Inicial"],
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
         key="bpm_sections_editor",
     )
@@ -276,7 +303,7 @@ def render_flag_editor(
                 candidates.append(BPMSection(startTime=row_t, startBeat=0.0, bpm=row_bpm))
 
             if abs(candidates[0].startTime) > 1e-6:
-                st.error("La Bandera #1 debe permanecer en el segundo 0.0s.")
+                st.error("La Bandera #1 debe permanecer en el segundo 0.0s.", icon=":material/warning:")
                 return current_sections
 
             validate_sections(candidates)
@@ -284,7 +311,7 @@ def render_flag_editor(
                 return recalculate_all_bpms_from_peaks(candidates, y, sr)
             return recalculate_beats(candidates)
         except Exception as err:
-            st.error(f"Error en tabla de secciones: {err}")
+            st.error(f"Error en tabla de secciones: {err}", icon=":material/warning:")
             return current_sections
 
     return current_sections

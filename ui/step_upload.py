@@ -51,25 +51,46 @@ def _apply_imported_meta(meta: SongMetadata) -> list:
 
 def _render_import_expander() -> None:
     """Render compact optional expander to load existing Meta.json or ImportedSongs entries."""
-    with st.expander("📂 Opcional: Importar Meta.json existente o mod desde ImportedSongs", expanded=False):
+    with st.expander(
+        "Opcional: Importar Meta.json existente o mod desde ImportedSongs",
+        expanded=False,
+        icon=":material/upload_file:",
+    ):
         col_json, col_game = st.columns(2)
         with col_json:
             uploaded_json = st.file_uploader("Subir archivo Meta.json", type=["json"], key="json_uploader")
-            if uploaded_json is not None and st.button("Cargar Meta.json", key="btn_load_meta_json", use_container_width=True):
+            if uploaded_json is not None and st.button(
+                "Cargar Meta.json",
+                key="btn_load_meta_json",
+                icon=":material/upload_file:",
+                width="stretch",
+            ):
                 try:
                     raw_text = uploaded_json.getvalue().decode("utf-8")
                     meta = SongMetadata.from_meta_dict(json.loads(raw_text))
                     sections = _apply_imported_meta(meta)
-                    st.success(f"Meta.json cargado: '{meta.songName}' ({len(sections)} sección/es).")
+                    st.success(
+                        f"Meta.json cargado: '{meta.songName}' ({len(sections)} sección/es).",
+                        icon=":material/check_circle:",
+                    )
                     st.rerun()
                 except Exception as exc:
-                    st.error(f"No se pudo importar Meta.json: {exc}")
+                    st.error(f"No se pudo importar Meta.json: {exc}", icon=":material/error:")
 
         with col_game:
             entries = list_imported_songs()
             if entries:
-                selected_name = st.selectbox("Canción en ImportedSongs", options=[e.name for e in entries], key="select_game_song")
-                if st.button("Cargar desde ImportedSongs", key="btn_load_game_song", use_container_width=True):
+                selected_name = st.selectbox(
+                    "Canción en ImportedSongs",
+                    options=[e.name for e in entries],
+                    key="select_game_song",
+                )
+                if st.button(
+                    "Cargar desde ImportedSongs",
+                    key="btn_load_game_song",
+                    icon=":material/upload_file:",
+                    width="stretch",
+                ):
                     try:
                         entry = next(e for e in entries if e.name == selected_name)
                         meta = entry.metadata or SongMetadata.from_meta_dict(
@@ -88,7 +109,7 @@ def _render_import_expander() -> None:
                         st.session_state["wizard_step"] = 2
                         st.rerun()
                     except Exception as exc:
-                        st.error(f"Error al cargar desde ImportedSongs: {exc}")
+                        st.error(f"Error al cargar desde ImportedSongs: {exc}", icon=":material/error:")
             else:
                 st.caption("No se detectaron mods previos en `%localappdata%\\Pagoda\\Saved\\ImportedSongs`.")
 
@@ -104,9 +125,13 @@ def render_step_upload() -> None:
     with st.container(border=True):
         st.markdown(
             "**¿Cómo funciona este primer paso?**\n"
-            "1. **Elige tu canción** (`.mp3`, `.wav`, `.ogg`, `.flac`).\n"
-            "2. **El sistema analiza automáticamente** el BPM, el primer pulso y los cambios de ritmo.\n"
-            "3. **Pasa al Paso 2** para escuchar el resultado con el metrónomo."
+            "1. **:material/upload_file: Elige tu canción** (`.mp3`, `.wav`, `.ogg`, `.flac`).\n"
+            "2. **:material/verified_user: El sistema analiza automáticamente** el BPM, el primer pulso y los cambios de ritmo.\n"
+            "3. **:material/arrow_forward: Pasa al Paso 2** para escuchar el resultado con el metrónomo."
+        )
+        st.info(
+            "Validación activa de cabeceras binarias (Magic Bytes) y huella MD5 en memoria RAM.",
+            icon=":material/verified_user:",
         )
         uploaded_file = st.file_uploader(
             "Arrastra o selecciona tu archivo de música aquí (.mp3, .wav, .ogg, .flac)",
@@ -126,11 +151,11 @@ def render_step_upload() -> None:
                 validate_audio_upload(uploaded_file.name, raw_bytes)
             except SecurityValidationError as sec_err:
                 _clear_audio_state()
-                st.error(f"Archivo bloqueado por validación de seguridad: {sec_err}")
+                st.error(f"Archivo bloqueado por validación de seguridad: {sec_err}", icon=":material/error:")
                 _render_import_expander()
                 return
 
-            with st.spinner("🎵 Analizando ritmo, BPM y primer pulso automáticamente..."):
+            with st.spinner("Analizando ritmo, BPM y primer pulso automáticamente..."):
                 try:
                     audio_md5 = compute_audio_md5(raw_bytes)
                     y, sr = load_audio(raw_bytes)
@@ -151,12 +176,12 @@ def render_step_upload() -> None:
                     st.rerun()
                 except (InsufficientAudioSignalError, AudioProcessingError) as dsp_err:
                     _clear_audio_state()
-                    st.error(f"No se pudo analizar la pista: {dsp_err}")
+                    st.error(f"No se pudo analizar la pista: {dsp_err}", icon=":material/error:")
                     _render_import_expander()
                     return
                 except Exception as exc:
                     _clear_audio_state()
-                    st.error(f"Error inesperado al procesar el archivo: {exc}")
+                    st.error(f"Error inesperado al procesar el archivo: {exc}", icon=":material/error:")
                     _render_import_expander()
                     return
 
@@ -169,18 +194,22 @@ def render_step_upload() -> None:
         loaded_name = st.session_state.get("filename") or "Canción cargada"
 
         with st.container(border=True):
-            st.success(f"✅ **Canción lista:** `{loaded_name}` analizada correctamente.")
+            st.success(
+                f"**Canción lista:** `{loaded_name}` analizada correctamente.",
+                icon=":material/check_circle:",
+            )
             m1, m2, m3, m4 = st.columns(4)
-            m1.metric("Tempo Detectado", f"{base_bpm:.1f} BPM")
-            m2.metric("Secciones de Ritmo", f"{len(sections)}")
-            m3.metric("Primer Pulso (Offset)", f"{offset_ms} ms")
+            m1.metric("Tempo detectado", f"{base_bpm:.1f} BPM")
+            m2.metric("Secciones de ritmo", f"{len(sections)}")
+            m3.metric("Primer pulso (Offset)", f"{offset_ms} ms")
             m4.metric("Duración", f"{duration:.1f} s")
 
             if st.button(
-                "▶️ Ir al Paso 2: Escuchar y Verificar Sincronización →",
+                "Ir al Paso 2: Escuchar y Verificar Sincronización",
                 key="btn_step1_to_step2",
                 type="primary",
-                use_container_width=True,
+                icon=":material/arrow_forward:",
+                width="stretch",
             ):
                 st.session_state["wizard_step"] = 2
                 st.rerun()

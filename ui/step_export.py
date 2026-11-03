@@ -48,7 +48,13 @@ def render_step_export() -> None:
             "Primero sube y verifica una canción antes de generar el paquete del mod.",
             "Bloqueado",
         )
-        if st.button("← Ir al Paso 1: Subir Canción", key="btn_locked_export_to_step1", type="primary"):
+        if st.button(
+            "Ir al Paso 1: Subir Canción",
+            key="btn_locked_export_to_step1",
+            type="primary",
+            icon=":material/arrow_back:",
+            width="stretch",
+        ):
             st.session_state["wizard_step"] = 1
             st.rerun()
         return
@@ -63,7 +69,7 @@ def render_step_export() -> None:
     )
 
     with st.container(border=True):
-        st.markdown("**1️⃣ Datos de la canción (aparecerán dentro del juego):**")
+        st.markdown("**:material/inventory_2: 1. Datos de la canción (aparecerán dentro del juego):**")
         col_title, col_artist = st.columns(2, gap="medium")
         with col_title:
             song_name_input = st.text_input(
@@ -83,7 +89,7 @@ def render_step_export() -> None:
         st.session_state["song_name"] = effective_song_name
         st.session_state["performed_by"] = performed_by_input
         safe_folder = sanitize_folder_name(effective_song_name)
-        st.caption(f"📁 Estructura del mod: `{safe_folder}/audio.ogg` + `{safe_folder}/Meta.json`")
+        st.caption(f":material/folder_zip: Estructura del mod: `{safe_folder}/audio.ogg` + `{safe_folder}/Meta.json`")
 
         metadata = generate_metadata(
             song_name=effective_song_name,
@@ -100,10 +106,11 @@ def render_step_export() -> None:
         )
 
         if st.button(
-            "📦 Generar y Descargar Paquete (.ZIP)",
+            "Generar y Descargar Paquete (.ZIP)",
             key="btn_generate_mod_zip",
             type="primary",
-            use_container_width=True,
+            icon=":material/inventory_2:",
+            width="stretch",
         ):
             source_ext = Path(filename).suffix.lower() or ".mp3"
             with st.spinner("Convirtiendo copia a audio.ogg (44.1 kHz) y empaquetando Meta.json..."):
@@ -118,38 +125,43 @@ def render_step_export() -> None:
                     )
                     st.session_state["export_result"] = export_res
                     st.session_state["last_exported_song"] = safe_folder
-                    st.success(f"✅ Paquete `{export_res.filename}` listo. Haz clic en el botón de descarga abajo.")
+                    st.success(
+                        f"Paquete `{export_res.filename}` listo. Haz clic en el botón de descarga abajo.",
+                        icon=":material/check_circle:",
+                    )
                 except (DependencyError, TranscodingError, ExportIOError) as err:
-                    st.error(f"Error al generar el paquete del mod: {err}")
+                    st.error(f"Error al generar el paquete del mod: {err}", icon=":material/error:")
                 except Exception as exc:
-                    st.error(f"Error inesperado en la exportación: {exc}")
+                    st.error(f"Error inesperado en la exportación: {exc}", icon=":material/error:")
 
         if st.session_state.get("export_result") is not None:
             res: ExportResult = st.session_state["export_result"]
             dl_col1, dl_col2 = st.columns([2.4, 1.2], gap="small")
             with dl_col1:
                 st.download_button(
-                    label=f"⬇️ Guardar Archivo {res.filename} en tu PC",
+                    label=f"Guardar Archivo {res.filename} en tu PC",
                     data=res.zip_bytes,
                     file_name=res.filename,
                     mime="application/zip",
                     type="primary",
-                    use_container_width=True,
+                    icon=":material/download:",
+                    width="stretch",
                     key="btn_download_mod_zip",
                 )
             with dl_col2:
                 meta_obj = res.metadata or metadata
                 st.download_button(
-                    label="📄 Solo Meta.json",
+                    label="Solo Meta.json",
                     data=meta_obj.to_meta_json(indent="\t").encode("utf-8"),
                     file_name="Meta.json",
                     mime="application/json",
-                    use_container_width=True,
+                    icon=":material/download:",
+                    width="stretch",
                     key="btn_download_meta_json",
                 )
 
     with st.container(border=True):
-        st.markdown("**2️⃣ Cómo instalar tu Mod en Dead as Disco (3 pasos):**")
+        st.markdown("**:material/folder_zip: 2. Cómo instalar tu Mod en Dead as Disco (3 pasos):**")
         st.markdown(
             f"- **Paso A:** Descomprime el archivo `.ZIP` descargado para obtener la carpeta **`{safe_folder}`**.\n"
             "- **Paso B:** Presiona **`Win + R`** en tu teclado, pega la siguiente ruta y pulsa **Enter**:"
@@ -160,10 +172,29 @@ def render_step_export() -> None:
             "dentro de **`ImportedSongs`**. ¡Listo para jugar!"
         )
 
-    with st.expander("🔍 Opcional: Ver código de Meta.json generado (16 campos nativos)", expanded=False):
+    with st.expander(
+        "Opcional: Ver código de Meta.json generado (16 campos nativos)",
+        expanded=False,
+        icon=":material/inventory_2:",
+    ):
         st.code(metadata.to_meta_json(indent="\t"), language="json")
 
-    st.markdown("---")
-    if st.button("← Volver al Paso 2: Escuchar y Verificar", key="btn_step3_back_step2"):
-        st.session_state["wizard_step"] = 2
-        st.rerun()
+    nav_back, nav_restart = st.columns(2, gap="medium")
+    with nav_back:
+        if st.button(
+            "Volver al Paso 2: Escuchar y Verificar",
+            key="btn_step3_back_step2",
+            icon=":material/arrow_back:",
+            width="stretch",
+        ):
+            st.session_state["wizard_step"] = 2
+            st.rerun()
+    with nav_restart:
+        if st.button(
+            "Sincronizar otra canción desde el Paso 1",
+            key="btn_step3_restart_step1",
+            icon=":material/restart_alt:",
+            width="stretch",
+        ):
+            st.session_state["wizard_step"] = 1
+            st.rerun()

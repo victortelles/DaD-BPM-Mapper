@@ -21,9 +21,10 @@ def build_player_css(theme_mode: str = "dark") -> str:
     scroll_thumb = "#cbd5e1" if is_light else "#334155"
 
     return f"""
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&family=JetBrains+Mono:wght@500;600;700&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap');
   * {{ box-sizing: border-box; margin: 0; padding: 0; user-select: none; font-family: 'Inter', system-ui, sans-serif; }}
   body {{ background: {bg}; color: {fg}; padding: 6px; overflow: hidden; }}
+  .material-symbols-rounded {{ font-family: 'Material Symbols Rounded'; font-weight: normal; font-style: normal; font-size: 14px; line-height: 1; display: inline-flex; align-items: center; vertical-align: middle; }}
   .player-card {{ background: {card}; border: 1px solid {border}; border-radius: 12px; padding: 12px 14px; box-shadow: 0 2px 6px rgba(2, 6, 23, 0.14); }}
   .header-bar {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1px solid {border}; padding-bottom: 8px; gap: 10px; }}
   .header-left, .header-right, .btn-group, .zoom-controls {{ display: flex; align-items: center; gap: 8px; }}
@@ -33,20 +34,21 @@ def build_player_css(theme_mode: str = "dark") -> str:
   .metro-light.downbeat {{ background: {primary}; box-shadow: 0 0 8px {primary}, 0 0 14px {accent}; }}
   .metro-light.upbeat {{ background: {accent}; box-shadow: 0 0 6px {accent}; }}
   .metro-bpm {{ font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 700; color: {fg}; min-width: 72px; }}
-  .metro-toggle {{ background: {card}; border: 1px solid {border}; border-radius: 6px; padding: 2px 7px; font-size: 11px; font-weight: 600; cursor: pointer; color: {muted_fg}; }}
+  .metro-toggle {{ background: {card}; border: 1px solid {border}; border-radius: 6px; padding: 2px 7px; font-size: 11px; font-weight: 600; cursor: pointer; color: {muted_fg}; display: inline-flex; align-items: center; gap: 4px; }}
   .metro-toggle.active {{ background: {primary}; border-color: {primary}; color: {primary_fg}; }}
   .time-display {{ font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 700; color: {fg}; background: {bg}; padding: 4px 10px; border-radius: 8px; border: 1px solid {border}; font-variant-numeric: tabular-nums; }}
   .time-current {{ color: {primary}; }}
-  .copy-time-btn {{ background: {bg}; color: {fg}; border: 1px solid {border}; border-radius: 8px; padding: 4px 10px; font-size: 12px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 4px; width: 142px; }}
+  .copy-time-btn {{ background: {bg}; color: {fg}; border: 1px solid {border}; border-radius: 8px; padding: 4px 10px; font-size: 12px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 4px; width: 146px; }}
   .copy-time-btn:hover {{ background: {hover_bg}; border-color: {primary}; color: {hover_fg}; }}
-  .copy-badge {{ font-size: 11px; color: {primary}; font-weight: 700; display: none; }}
+  .copy-badge {{ font-size: 11px; color: {primary}; font-weight: 700; display: none; align-items: center; gap: 3px; }}
   .waveform-wrapper {{ position: relative; width: 100%; height: 210px; background: {bg}; border: 1px solid {border}; border-radius: 8px; overflow-x: auto; overflow-y: hidden; cursor: crosshair; }}
   .waveform-wrapper::-webkit-scrollbar {{ height: 7px; }}
   .waveform-wrapper::-webkit-scrollbar-track {{ background: {muted_bg}; }}
   .waveform-wrapper::-webkit-scrollbar-thumb {{ background: {scroll_thumb}; border-radius: 4px; }}
   .waveform-wrapper::-webkit-scrollbar-thumb:hover {{ background: {primary}; }}
   #waveCanvas {{ display: block; height: 210px; }}
-  .daw-hint-bar {{ display: flex; justify-content: space-between; align-items: center; margin-top: 6px; padding: 4px 10px; background: {bg}; border: 1px solid {border}; border-radius: 6px; font-size: 11px; color: {muted_fg}; font-weight: 500; }}
+  .daw-hint-bar {{ display: flex; justify-content: space-between; align-items: center; margin-top: 6px; padding: 4px 10px; background: {bg}; border: 1px solid {border}; border-radius: 6px; font-size: 11px; color: {muted_fg}; font-weight: 500; gap: 8px; flex-wrap: wrap; }}
+  .hint-item {{ display: inline-flex; align-items: center; gap: 4px; }}
   .controls-row {{ display: flex; justify-content: space-between; align-items: center; margin-top: 8px; gap: 10px; flex-wrap: nowrap; }}
   button {{ background: {bg}; color: {fg}; border: 1px solid {border}; border-radius: 8px; padding: 5px 10px; font-size: 12px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; transition: all 0.12s ease; }}
   button:hover {{ background: {hover_bg}; border-color: {primary}; color: {hover_fg}; }}
@@ -54,7 +56,7 @@ def build_player_css(theme_mode: str = "dark") -> str:
   .btn-primary:hover {{ background: {accent}; border-color: {accent}; color: #ffffff; }}
   .btn-danger {{ background: #ef4444; border-color: #ef4444; color: #ffffff; }}
   .btn-danger:hover {{ background: #dc2626; border-color: #dc2626; color: #ffffff; }}
-  .icon-svg {{ width: 13px; height: 13px; fill: currentColor; }}
+  .icon-svg {{ width: 13px; height: 13px; fill: currentColor; flex-shrink: 0; }}
   .zoom-controls {{ background: {bg}; padding: 4px 10px; border-radius: 8px; border: 1px solid {border}; }}
   .zoom-label {{ font-size: 11px; color: {muted_fg}; font-weight: 600; }}
   input[type="range"] {{ accent-color: {primary}; cursor: pointer; width: 88px; }}
@@ -81,7 +83,7 @@ def build_player_js() -> str:
   const zoomSlider = document.getElementById("zoomSlider"), zoomValue = document.getElementById("zoomValue");
   const btnZoomFit = document.getElementById("btnZoomFit"), btnZoom5x = document.getElementById("btnZoom5x"), btnZoom15x = document.getElementById("btnZoom15x");
   const chkFollow = document.getElementById("chkFollow"), chkBeatGrid = document.getElementById("chkBeatGrid");
-  const metroLight = document.getElementById("metroLight"), metroBpm = document.getElementById("metroBpm"), btnMetroAudio = document.getElementById("btnMetroAudio");
+  const metroLight = document.getElementById("metroLight"), metroBpm = document.getElementById("metroBpm"), btnMetroAudio = document.getElementById("btnMetroAudio"), metroLabel = document.getElementById("metroLabel");
 
   let zoomLevel = 1.0, isScrubbing = false, isPanning = false, panStartX = 0, panStartScroll = 0;
   let hoverTime = null, audioCtx = null, metroAudioEnabled = false, lastBeatIndex = -1, speedIdx = 2, flagHitBoxes = [];
@@ -102,7 +104,7 @@ def build_player_js() -> str:
   }
   btnMetroAudio.addEventListener("click", () => {
     initAudioContext(); metroAudioEnabled = !metroAudioEnabled;
-    btnMetroAudio.innerText = metroAudioEnabled ? "Click: ON" : "Click: OFF";
+    if (metroLabel) metroLabel.innerText = metroAudioEnabled ? "Metrónomo: ON" : "Metrónomo: OFF";
     btnMetroAudio.classList.toggle("active", metroAudioEnabled);
   });
   function formatTime(sec) {
@@ -294,7 +296,7 @@ def build_player_js() -> str:
   btnPlayPause.addEventListener("click", () => {
     initAudioContext();
     if (audio.paused) {
-      audio.play(); playLabel.innerText = "Pausa"; playIcon.innerHTML = '<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>';
+      audio.play(); playLabel.innerText = "Pausar"; playIcon.innerHTML = '<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>';
       btnPlayPause.classList.replace("btn-primary", "btn-danger");
     } else {
       audio.pause(); playLabel.innerText = "Reproducir"; playIcon.innerHTML = '<path d="M8 5v14l11-7z"/>';
@@ -317,7 +319,7 @@ def build_player_js() -> str:
   btnCopyTime.addEventListener("click", () => {
     const txt = (audio.currentTime || 0).toFixed(3);
     navigator.clipboard.writeText(txt).then(() => {
-      btnCopyLabel.style.display = "none"; copyBadge.style.display = "inline";
+      btnCopyLabel.style.display = "none"; copyBadge.style.display = "inline-flex";
       setTimeout(() => { copyBadge.style.display = "none"; btnCopyLabel.style.display = "inline"; }, 1400);
     }).catch(() => prompt("Tiempo actual (s):", txt));
   });
@@ -360,17 +362,17 @@ def build_waveform_player_html(
 <div class="player-card">
   <div class="header-bar">
     <div class="header-left"><div class="header-title"><svg class="icon-svg" viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg><span>Monitor de Onda y Ritmo</span></div>
-      <div class="metronome-box" title="Metrónomo sincronizado con las banderas de tempo"><div class="metro-light" id="metroLight"></div><span class="metro-bpm" id="metroBpm">120.0 BPM</span><button class="metro-toggle" id="btnMetroAudio" title="Activar click de metrónomo">Click: OFF</button></div></div>
+      <div class="metronome-box" title="Metrónomo sincronizado con las banderas de tempo"><div class="metro-light" id="metroLight"></div><span class="metro-bpm" id="metroBpm">120.0 BPM</span><button class="metro-toggle" id="btnMetroAudio" title="Activar click de metrónomo"><svg class="icon-svg" viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg><span id="metroLabel">Metrónomo: OFF</span></button></div></div>
     <div class="header-right"><div class="time-display"><span class="time-current" id="timeCurrent">00:00.000</span> / <span id="timeTotal">00:00.000</span></div>
-      <button class="copy-time-btn" id="btnCopyTime" title="Copiar segundo actual"><span id="btnCopyLabel">Copiar Tiempo</span><span class="copy-badge" id="copyBadge">✓ Copiado</span></button></div>
+      <button class="copy-time-btn" id="btnCopyTime" title="Copiar segundo actual"><span id="btnCopyLabel">Copiar Tiempo</span><span class="copy-badge" id="copyBadge"><svg class="icon-svg" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg> Copiado</span></button></div>
   </div>
   <div class="waveform-wrapper" id="waveWrapper"><canvas id="waveCanvas"></canvas></div>
-  <div class="daw-hint-bar"><span>🖱️ Rueda: Zoom en cursor · ⌨️ Shift / Ctrl + Arrastrar: Mover línea de tiempo · 👆 Clic / Arrastrar: Mover reproductor</span></div>
+  <div class="daw-hint-bar"><span class="hint-item"><span class="material-symbols-rounded">mouse</span> Rueda: Zoom en cursor</span><span class="hint-item"><span class="material-symbols-rounded">keyboard</span> Shift / Ctrl + Arrastrar: Mover línea de tiempo</span><span class="hint-item"><span class="material-symbols-rounded">ads_click</span> Clic / Arrastrar: Mover reproductor</span></div>
   <div class="controls-row">
     <div class="btn-group">
       <button id="btnPlayPause" class="btn-primary"><svg class="icon-svg" id="playIcon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg><span id="playLabel">Reproducir</span></button>
-      <button id="btnStop" title="Reiniciar">Detener</button><button id="btnSkipBack" title="Retroceder 5s">-5s</button><button id="btnSkipFwd" title="Avanzar 5s">+5s</button>
-      <button id="btnSpeed" title="Velocidad">1.0x</button><button id="btnPrevFlag" title="◀ Anterior" class="zoom-preset">◀ Bandera</button><button id="btnNextFlag" title="Siguiente ▶" class="zoom-preset">Bandera ▶</button>
+      <button id="btnStop" title="Reiniciar"><svg class="icon-svg" viewBox="0 0 24 24"><path d="M6 6h12v12H6z"/></svg><span>Detener</span></button><button id="btnSkipBack" title="Retroceder 5s">-5s</button><button id="btnSkipFwd" title="Avanzar 5s">+5s</button>
+      <button id="btnSpeed" title="Velocidad">1.0x</button><button id="btnPrevFlag" title="Bandera anterior" class="zoom-preset"><svg class="icon-svg" viewBox="0 0 24 24"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg><span>Bandera</span></button><button id="btnNextFlag" title="Bandera siguiente" class="zoom-preset"><span>Bandera</span><svg class="icon-svg" viewBox="0 0 24 24"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg></button>
     </div>
     <div class="zoom-controls">
       <span class="zoom-label">Zoom:</span><input type="range" id="zoomSlider" min="1" max="16" value="1" step="0.5"><span id="zoomValue" style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;min-width:28px;">1x</span>

@@ -103,7 +103,10 @@ def test_player_assets_daw_mouse_controls_and_themes():
         theme_mode="dark",
     )
     assert 'class="dark"' in html_dark
-    assert "🖱️ Rueda: Zoom en cursor · ⌨️ Shift / Ctrl + Arrastrar: Mover línea de tiempo · 👆 Clic / Arrastrar: Mover reproductor" in html_dark
+    assert "Rueda: Zoom en cursor" in html_dark
+    assert "Shift / Ctrl + Arrastrar: Mover línea de tiempo" in html_dark
+    assert "Clic / Arrastrar: Mover reproductor" in html_dark
+    assert "material-symbols-rounded" in html_dark
     assert "const initialSeek = 2.5;" in html_dark
 
     html_light = build_player_html(

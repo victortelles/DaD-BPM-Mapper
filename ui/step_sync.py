@@ -32,36 +32,41 @@ def _section_role_label(index: int, bpm: float, base_bpm: float) -> str:
     return "Cambio"
 
 
-def _render_detected_sections_strip(sections: List[BPMSection]) -> None:
-    """Render interactive tempo section chips and a 1-line explanation of the flag count."""
+def _render_tempo_sections_strip(sections: List[BPMSection]) -> None:
+    """Render interactive tempo section chips and a concise explanation of the flag count."""
     if not sections:
         return
 
     base_bpm = float(sections[0].bpm)
-    st.markdown("**🚩 Secciones de Ritmo Detectadas (haz clic en una bandera para saltar a ese segundo):**")
+    st.markdown("##### :material/flag: Secciones de ritmo detectadas (clic para escuchar)")
 
     cols_per_row = min(4, max(1, len(sections)))
     for row_start in range(0, len(sections), cols_per_row):
-        row_Slice = sections[row_start : row_start + cols_per_row]
-        chip_cols = st.columns(len(row_Slice), gap="small")
-        for col, (idx, sec) in zip(chip_cols, enumerate(row_Slice, start=row_start)):
+        row_slice = sections[row_start : row_start + cols_per_row]
+        chip_cols = st.columns(len(row_slice), gap="small")
+        for col, (idx, sec) in zip(chip_cols, enumerate(row_slice, start=row_start)):
             role = _section_role_label(idx, float(sec.bpm), base_bpm)
-            chip_label = f"🚩 #{idx + 1} · {_format_chip_time(sec.startTime)} → {sec.bpm:.1f} BPM ({role})"
+            label = f"#{idx + 1} · {_format_chip_time(sec.startTime)} · {sec.bpm:.1f} BPM ({role})"
             with col:
-                if st.button(chip_label, key=f"btn_chip_sec_{idx}", use_container_width=True):
+                if st.button(label, key=f"chip_sec_{idx}", icon=":material/flag:", width="stretch"):
                     st.session_state["player_seek_time"] = float(sec.startTime)
                     st.rerun()
 
     if len(sections) == 1:
-        st.caption(
-            "ℹ️ **Ritmo constante detectado (1 bandera):** Esta canción mantiene un pulso estable de principio a fin. "
-            "Si tiene un cambio de ritmo que quieras marcar a mano, usa el ajuste manual opcional abajo."
+        st.info(
+            "**Ritmo constante detectado (1 bandera):** Esta canción mantiene un pulso estable de principio a fin. "
+            "Si tiene un cambio de ritmo que quieras marcar a mano, usa el ajuste manual opcional abajo.",
+            icon=":material/info:",
         )
     else:
-        st.caption(
-            f"ℹ️ **Múltiples ritmos detectados ({len(sections)} banderas):** Se detectaron cambios de velocidad "
-            "o intensidad automáticamente a lo largo de la canción."
+        st.info(
+            f"**Múltiples ritmos detectados ({len(sections)} banderas):** Se detectaron cambios de velocidad "
+            "o intensidad automáticamente a lo largo de la canción.",
+            icon=":material/info:",
         )
+
+
+_render_detected_sections_strip = _render_tempo_sections_strip
 
 
 def render_step_sync() -> None:
@@ -72,7 +77,13 @@ def render_step_sync() -> None:
             "Primero sube una pista de audio válida en el Paso 1 para habilitar el reproductor.",
             "Bloqueado",
         )
-        if st.button("← Ir al Paso 1: Subir Canción", key="btn_locked_sync_to_step1", type="primary"):
+        if st.button(
+            "Ir al Paso 1: Subir Canción",
+            key="btn_locked_sync_to_step1",
+            type="primary",
+            icon=":material/arrow_back:",
+            width="stretch",
+        ):
             st.session_state["wizard_step"] = 1
             st.rerun()
         return
@@ -91,8 +102,8 @@ def render_step_sync() -> None:
     )
     with st.container(border=True):
         st.markdown(
-            "1. Pulsa **▶ Reproducir** y marca **🔊 Metrónomo** para comprobar que los pulsos van al ritmo de la música.\n"
-            "2. Si suena bien sincronizado, pulsa **\"Continuar al Paso 3: Descargar Mod\"** abajo. "
+            "1. Pulsa **:material/play_arrow: Reproducir** y marca **:material/volume_up: Metrónomo** para comprobar que los pulsos van al ritmo de la música.\n"
+            "2. Salta entre las **:material/flag: Secciones de ritmo** o pulsa **\"Continuar al Paso 3: Descargar Mod (.ZIP)\"** abajo si suena bien sincronizado. "
             "*(Solo abre el panel manual si notas algún desfase).*"
         )
 
@@ -115,43 +126,51 @@ def render_step_sync() -> None:
     )
 
     # 3. Detected Tempo Sections Strip (Visual Summary)
-    _render_detected_sections_strip(sections)
+    _render_tempo_sections_strip(sections)
 
-    # 4. Primary Navigation CTA Bar (IMMEDIATELY visible without scrolling past manual forms)
-    st.markdown("---")
+    # 4. Primary Navigation CTA Bar
     nav_back, nav_next = st.columns([1.2, 2.2], gap="medium")
     with nav_back:
-        if st.button("← Paso 1: Cambiar canción", key="btn_step2_back_step1", use_container_width=True):
+        if st.button(
+            "Paso 1: Cambiar canción",
+            key="btn_sync_back_step1",
+            icon=":material/arrow_back:",
+            width="stretch",
+        ):
             st.session_state["wizard_step"] = 1
             st.rerun()
     with nav_next:
         if st.button(
-            "✅ Suena bien — Continuar al Paso 3: Descargar Mod (.ZIP) →",
-            key="btn_step2_to_step3",
+            "Suena bien — Continuar al Paso 3: Descargar Mod (.ZIP)",
+            key="btn_sync_to_step3",
             type="primary",
-            use_container_width=True,
+            icon=":material/check_circle:",
+            width="stretch",
         ):
             st.session_state["wizard_step"] = 3
             st.rerun()
 
     # 5. Optional Collapsed Expander for Manual Adjustments
     with st.expander(
-        "🛠️ Ajuste Manual de Banderas y Sincronizador en Pico (Opcional — solo si necesitas corregir el ritmo manualmente)",
+        "Ajuste manual de banderas y sincronizador en pico (Opcional — solo si necesitas corregir el ritmo manualmente)",
         expanded=False,
+        icon=":material/build:",
     ):
         st.info(
             "Usa estas herramientas solo si sientes que el metrónomo va adelantado/atrasado "
-            "o si quieres agregar cambios de BPM manualmente."
+            "o si quieres agregar cambios de BPM manualmente.",
+            icon=":material/info:",
         )
 
         col_offset_hdr, col_redetect = st.columns([2.6, 1.4])
         with col_offset_hdr:
-            st.markdown("**⏱️ Ajuste de Primer Pulso (Beat Offset) y Recorte**")
+            st.markdown("**:material/timer: Ajuste de primer pulso (Beat Offset) y recorte**")
         with col_redetect:
             if st.button(
-                "🔄 Re-detectar Automáticamente",
+                "Re-detectar automáticamente",
                 key="btn_reset_detection",
-                use_container_width=True,
+                icon=":material/refresh:",
+                width="stretch",
             ):
                 auto_secs = detect_tempo_sections((y, sr))
                 auto_offset = detect_beat_offset_ms(y, sr)
@@ -159,7 +178,10 @@ def render_step_sync() -> None:
                 st.session_state["initial_sections"] = list(auto_secs)
                 st.session_state["beat_offset_ms"] = auto_offset
                 st.session_state["fit_quality"] = compute_fit_quality(y, sr, auto_secs, auto_offset)
-                st.success("Ritmo y banderas restablecidos a la detección automática.")
+                st.success(
+                    "Ritmo y banderas restablecidos a la detección automática.",
+                    icon=":material/check_circle:",
+                )
                 st.rerun()
 
         new_beat_offset, new_start_offset, new_end_offset = render_offset_controls(

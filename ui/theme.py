@@ -110,7 +110,7 @@ def get_theme_css(theme_mode: str = "dark") -> str:
     done_border = "#0284c7" if mode != "light" else "#bae6fd"
 
     return f"""
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap');
 
 :root {{
 {_format_css_vars(LIGHT_PALETTE)}
@@ -122,21 +122,45 @@ def get_theme_css(theme_mode: str = "dark") -> str:
 
 html, body, [data-testid="stAppViewContainer"], .stApp {{
 {_format_css_vars(active)}
+  --header-surface: {header_bg};
   background-color: var(--background) !important;
   color: var(--foreground) !important;
   font-family: var(--font-sans) !important;
 }}
 header[data-testid="stHeader"] {{
-  background-color: {header_bg} !important;
-  backdrop-filter: blur(8px);
-  border-bottom: 1px solid var(--border);
+  height: 3.25rem !important;
+  background-color: transparent !important;
+  backdrop-filter: none !important;
+  border-bottom: none !important;
 }}
 [data-testid="stSidebar"] {{
   background-color: var(--sidebar) !important;
   color: var(--sidebar-foreground) !important;
   border-right: 1px solid var(--sidebar-border) !important;
 }}
-.block-container {{ padding-top: 1.5rem !important; padding-bottom: 2.5rem !important; max-width: 1180px !important; }}
+.block-container {{
+  padding-top: 4.5rem !important;
+  padding-bottom: 2.5rem !important;
+  max-width: 1180px !important;
+}}
+.ms-icon, .material-symbols-rounded {{
+  font-family: 'Material Symbols Rounded' !important;
+  font-weight: normal;
+  font-style: normal;
+  font-size: 1.15rem;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+}}
+.dad-callout-red {{
+  border: 2px solid #ef4444;
+  border-left: 5px solid #ef4444;
+  background: rgba(239, 68, 68, 0.08);
+  border-radius: var(--radius);
+  padding: 0.85rem 1.1rem;
+  margin: 0.65rem 0;
+}}
 h1, h2, h3, h4, h5, h6 {{ color: var(--foreground) !important; font-family: var(--font-sans) !important; letter-spacing: -0.02em; }}
 .stMarkdown, [data-testid="stMarkdownContainer"], label, p, span {{ color: var(--foreground); }}
 [data-testid="stCaptionContainer"], .stCaption {{ color: var(--muted-foreground) !important; }}
@@ -226,7 +250,7 @@ pre code, [data-testid="stCodeBlock"] code {{ background-color: transparent !imp
 .dad-badge {{
   background: var(--secondary); color: var(--primary); font-family: var(--font-mono);
   font-size: 0.76rem; font-weight: 600; padding: 0.25rem 0.65rem; border-radius: 999px;
-  border: 1px solid var(--border); white-space: nowrap;
+  border: 1px solid var(--border); white-space: nowrap; display: inline-flex; align-items: center; gap: 0.3rem;
 }}
 .dad-step-bar {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; margin-bottom: 1.1rem; }}
 .dad-step-item {{
@@ -255,7 +279,7 @@ def apply_studio_theme(theme_mode: Optional[str] = None) -> None:
 
 
 def render_step_indicator(current_step: int, unlocked_step: Optional[int] = None) -> None:
-    """Render the 3-step visual progress indicator bar."""
+    """Render the 3-step visual progress indicator bar using Material Symbols."""
     steps = [
         (1, "1. Subir Audio", "Paso 1: Subir Audio"),
         (2, "2. Sincronizar Ritmo", "Paso 2: Sincronizar Ritmo"),
@@ -264,7 +288,11 @@ def render_step_indicator(current_step: int, unlocked_step: Optional[int] = None
     items_html = []
     for num, short_label, full_label in steps:
         state_cls = "active" if num == current_step else ("done" if num < current_step else "")
-        badge_txt = "✓" if num < current_step else str(num)
+        badge_txt = (
+            '<span class="material-symbols-rounded" style="font-size:1rem;">check</span>'
+            if num < current_step
+            else str(num)
+        )
         items_html.append(
             f'<div class="dad-step-item {state_cls}" title="{full_label}" aria-label="{full_label}">'
             f'<span class="dad-step-num">{badge_txt}</span>'
