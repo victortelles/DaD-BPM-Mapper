@@ -30,7 +30,7 @@ GUIDE_STEPS: List[Tuple[str, str, str, str]] = [
     ),
     (
         "Paso 4: Instalar en `ImportedSongs` y Jugar",
-        "Presiona `Win + R`, abre `%localappdata%\\Pagoda\\Saved\\ImportedSongs\\`, extrae la carpeta del `.zip` y valida el ritmo dentro de *Dead as Disco*.",
+        "Presiona `Win + R`, abre `%localappdata%\\Pagoda\\Saved\\ImportedSongs\\`, extrae la carpeta del `.zip` y valida el ritmo dentro de *Dead as Disco* con tu mando.",
         "assets/guide/step4_install_game.png",
         "Listo para Jugar",
     ),
@@ -38,45 +38,45 @@ GUIDE_STEPS: List[Tuple[str, str, str, str]] = [
 
 GUIDE_STEP_CALLOUTS: Dict[int, List[str]] = {
     1: [
-        "1. Arrastra o selecciona tu archivo de música (.mp3, .wav, .ogg o .flac) en el recuadro de subida.",
-        "2. Comprueba las 4 tarjetas con el Ritmo (BPM), duración total, inicio del primer pulso y precisión.",
-        "3. Pulsa el botón «Paso 2: Escuchar y verificar» para continuar al monitor de onda interactivo.",
+        "1. Recuadro de subida: arrastra o selecciona tu archivo de música (.mp3, .wav, .ogg o .flac).",
+        "2. Resumen acústico: comprueba las tarjetas con el BPM detectado, duración, primer pulso y precisión.",
+        "3. Botón de avance: pulsa «Ir al Paso 2» para continuar al monitor de onda interactivo.",
     ],
     2: [
-        "1. Controles de audio: activa «Metrónomo: ON», pulsa «Reproducir» y ajusta el volumen para oír los pulsos.",
-        "2. Navega entre las secciones en el menú desplegable y usa la rueda del ratón o arrastra para explorar la onda.",
-        "3. Si todo suena a tiempo, pulsa «Suena bien — Continuar al Paso 3: Descargar mod».",
+        "1. Controles de audio: activa «Metrónomo: ON», pulsa «Reproducir» y ajusta el volumen de los pulsos.",
+        "2. Selector de secciones: navega por los cambios de ritmo en el menú desplegable y explora la onda.",
+        "3. Confirmación de ritmo: pulsa «Suena bien — Continuar al Paso 3» cuando los pulsos coincidan.",
     ],
     3: [
-        "1. Revisa o escribe el título de la canción y los campos opcionales de artista y compositor.",
-        "2. Pulsa «Generar y Descargar Paquete» para empaquetar en formato OGG 44.1 kHz y Meta.json nativo.",
-        "3. Pulsa «Abrir carpeta en Windows» para ir directo a la carpeta %localappdata%\\Pagoda\\Saved\\ImportedSongs\\.",
+        "1. Datos del mod: escribe o confirma el título de la canción y los campos opcionales para Unreal Engine.",
+        "2. Empaquetado: pulsa «Generar y Descargar Paquete» para obtener tu archivo .ZIP (audio.ogg + Meta.json).",
+        "3. Carpeta del juego: usa el botón «Abrir carpeta en Windows» para ir directo a ImportedSongs.",
     ],
     4: [
         "1. En Windows, abre el cuadro Ejecutar con «Win + R» y pega %localappdata%\\Pagoda\\Saved\\ImportedSongs\\.",
         "2. Descomprime tu archivo .ZIP para que la carpeta contenga directamente audio.ogg y Meta.json.",
-        "3. Inicia Dead as Disco, selecciona la pista en canciones importadas y juega al ritmo de los golpes.",
+        "3. Inicia Dead as Disco, selecciona la pista en canciones importadas y ¡juega con mando al ritmo!",
     ],
 }
 
 
 def _render_callout_box(step_num: int, callouts: List[str]) -> None:
-    """Render a studio-palette legend explaining the numbered badge callouts on the banner image."""
+    """Render an amber-accented legend explaining the numbered badge callouts on the banner image."""
     items_html = ""
     for idx, item in enumerate(callouts, start=1):
         num = item.split(".")[0] if "." in item else str(idx)
         text = item.split(".", 1)[1].strip() if "." in item else item
         items_html += (
             f'<div style="margin:0.35rem 0;font-size:0.88rem;line-height:1.45;display:flex;align-items:flex-start;gap:8px;">'
-            f'<span style="background:#38bdf8;color:#020617;font-weight:700;font-size:0.75rem;border-radius:999px;width:1.35rem;height:1.35rem;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px;">{num}</span>'
+            f'<span style="background:#f59e0b;color:#020617;font-weight:700;font-size:0.75rem;border-radius:999px;width:1.35rem;height:1.35rem;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px;">{num}</span>'
             f'<span style="color:var(--foreground);">{text}</span>'
             f"</div>"
         )
 
     st.markdown(
-        f'<div style="background:var(--secondary);border:1px solid var(--border);border-left:3px solid #38bdf8;border-radius:var(--radius);padding:0.75rem 0.95rem;margin-top:0.6rem;">'
-        f'<div style="font-weight:700;font-size:0.86rem;color:#38bdf8;margin-bottom:0.45rem;display:flex;align-items:center;gap:6px;">'
-        f'<span class="material-symbols-rounded" style="font-size:1.05rem;color:#38bdf8;">center_focus_strong</span>'
+        f'<div style="background:var(--secondary);border:1px solid var(--border);border-left:3px solid #f59e0b;border-radius:var(--radius);padding:0.75rem 0.95rem;margin-top:0.6rem;">'
+        f'<div style="font-weight:700;font-size:0.86rem;color:#f59e0b;margin-bottom:0.45rem;display:flex;align-items:center;gap:6px;">'
+        f'<span class="material-symbols-rounded" style="font-size:1.05rem;color:#f59e0b;">center_focus_strong</span>'
         f"PUNTOS CLAVE DESTACADOS (PASO {step_num})</div>"
         f"{items_html}</div>",
         unsafe_allow_html=True,
