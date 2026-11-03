@@ -6,8 +6,6 @@ import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from audio_analysis.exceptions import ValidationError
-
 
 def _clean_number(val: Union[int, float]) -> Union[int, float]:
     if isinstance(val, int) and not isinstance(val, bool):
@@ -87,6 +85,9 @@ class AnalyseResult:
             fitQuality=float(data.get("fitQuality", 0.92)),
             errorCode=ErrorCode.from_dict(data.get("errorCode")),
         )
+
+
+from audio_analysis.exceptions import ValidationError
 
 
 def sections_to_native_tempo(bpm_sections: List[BPMSection]) -> Tuple[Union[float, int], List[CustomTempoSection]]:
