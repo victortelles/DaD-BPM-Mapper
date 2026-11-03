@@ -9,7 +9,7 @@ import streamlit.components.v1 as components
 
 from audio_analysis.beat_detection import downsample_waveform
 from models.song_metadata import BPMSection
-from ui.player_assets import build_player_html
+from ui.player_assets import build_player_html, build_waveform_player_html
 
 
 def render_live_waveform_player(
@@ -19,8 +19,9 @@ def render_live_waveform_player(
     sr: int,
     bpm_sections: List[BPMSection],
     title: str = "Editor y Reproductor de Onda en Vivo",
-    height: int = 420,
+    height: int = 435,
     seek_time: Optional[float] = None,
+    theme_mode: Optional[str] = None,
     **kwargs,
 ) -> None:
     """Render the live interactive waveform editor with audio playback, playhead, and metronome.
@@ -34,6 +35,7 @@ def render_live_waveform_player(
         title: Component header.
         height: Iframe height in pixels.
         seek_time: Optional initial timestamp to seek playhead to.
+        theme_mode: Optional 'dark' or 'light' theme mode override.
         **kwargs: Additional keyword arguments (e.g. beat_offset_ms).
     """
     if audio_bytes is None:
@@ -52,6 +54,12 @@ def render_live_waveform_player(
     if y is None or sr is None or sr <= 0 or len(y) == 0:
         st.warning("Datos de forma de onda no disponibles.")
         return
+
+    resolved_theme = (
+        theme_mode
+        if theme_mode is not None
+        else st.session_state.get("theme_mode", "dark")
+    )
 
     initial_seek_str = "null"
     if seek_time is not None:
@@ -89,12 +97,14 @@ def render_live_waveform_player(
             "envelope": norm_envelope,
             "sections": sections_data,
             "beatOffsetMs": int(beat_offset_ms or 0),
+            "themeMode": resolved_theme,
         }
     )
 
-    html_content = build_player_html(
+    html_content = build_waveform_player_html(
         data_uri=data_uri,
         payload_json=payload_json,
         initial_seek_str=initial_seek_str,
+        theme_mode=resolved_theme,
     )
     components.html(html_content, height=height, scrolling=False)
