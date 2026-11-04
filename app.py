@@ -12,6 +12,7 @@ from ui.step_export import render_step_export
 from ui.step_sync import render_step_sync
 from ui.step_upload import render_step_upload
 from ui.theme import apply_studio_theme, render_step_indicator
+from ui.troubleshooting_view import render_troubleshooting_view
 
 LOGO_PATH = Path(__file__).resolve().parent / "Logo.PNG"
 BANNER_PATH = Path(__file__).resolve().parent / "assets" / "Banner.png"
@@ -84,6 +85,7 @@ def _render_sidebar() -> None:
         nav_items = [
             ("wizard", "Asistente guiado (3 pasos)", ":material/tune:"),
             ("guide", "Cómo usarlo (guía visual)", ":material/menu_book:"),
+            ("troubleshooting", "En caso de errores", ":material/help:"),
             ("legal", "Políticas y reglas legales", ":material/gavel:"),
         ]
         for nav_key, nav_label, nav_icon in nav_items:
@@ -256,6 +258,8 @@ def main() -> None:
     active_nav = st.session_state.get("active_nav", "wizard")
     if active_nav == "guide":
         render_guide_view()
+    elif active_nav == "troubleshooting":
+        render_troubleshooting_view()
     elif active_nav == "legal":
         render_legal_view()
     else:

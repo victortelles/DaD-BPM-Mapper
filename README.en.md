@@ -211,6 +211,31 @@ pytest tests/test_architecture_limits.py tests/test_e2e_workflow.py -v
 
 ---
 
+## Troubleshooting & Frequently Asked Questions (FAQ)
+
+### 1. The game shows: *"No se encontró la música. Por favor selecciona el archivo de audio"* ("Music not found")
+- **Why does this happen?**: Dead as Disco (built on Unreal Engine) stores the absolute file path on disk (`originalAudioFilePath`) in `Meta.json`. If you download a mod created on another PC or if your Windows username differs, Unreal Engine cannot locate the old path on your system and prompts you to locate it.
+- **2-Click Permanent Fix**:
+  1. When Dead as Disco displays the prompt, click the browse/select file button.
+  2. Navigate into your mod folder inside `%localappdata%\Pagoda\Saved\ImportedSongs\<Folder>\` and choose the **`audio.ogg`** file.
+  3. Unreal Engine automatically re-links the path on your PC into `Meta.json` permanently.
+
+### 2. Song does not appear in the custom song list
+- Ensure the folder was extracted directly inside `%localappdata%\Pagoda\Saved\ImportedSongs\`.
+- Check that there are no nested subfolders (e.g. `ImportedSongs/MySong/MySong/Meta.json`). The structure must be direct:
+  ```text
+  %localappdata%\Pagoda\Saved\ImportedSongs\
+      └── MySong\
+              ├── audio.ogg
+              └── Meta.json
+  ```
+
+### 3. The rhythm feels offset or desynchronized
+- In **Step 2** of the wizard, play the song with the **Metronome** enabled.
+- Adjust the **First Beat Offset** slider to calibrate the downbeat timing precisely before generating the mod ZIP.
+
+---
+
 ## Security, Privacy & Legal Disclaimer (DMCA)
 
 - **Data Privacy (Zero Data Collection)**: The application does not collect, track, or store any personal user data. It strictly uses the provided audio file to calculate BPM and tempo synchronization locally in volatile RAM, without storing it in any database or external server.

@@ -190,6 +190,8 @@ def _prepare_export_inputs(
         song_name, bpm_sections if isinstance(bpm_sections, list) else None,
         audio_bytes=meta_kwargs.pop("audio_bytes", audio_bytes), **meta_kwargs,
     )
+    if audio_bytes and meta.originalAudioFilePath and ("audio.ogg" in meta.originalAudioFilePath.lower() or meta.originalAudioFilePath.lower().endswith(".ogg")):
+        meta.originalAudioFileHash = compute_audio_md5(audio_bytes)
     return meta, audio_bytes
 
 
