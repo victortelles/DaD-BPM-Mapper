@@ -1,6 +1,7 @@
 # Project instructions and planning artifacts
 Instrucciones.md
 openspec/
+/errors
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -125,6 +125,31 @@ pytest tests/test_architecture_limits.py tests/test_e2e_workflow.py -v
 
 ---
 
+## En Caso de Errores y Preguntas Frecuentes (FAQ)
+
+### 1. El juego muestra: *"No se encontró la música. Por favor selecciona el archivo de audio"*
+- **¿Por qué ocurre?**: Dead as Disco (desarrollado en Unreal Engine) almacena en `Meta.json` la ruta absoluta del archivo en tu disco (`originalAudioFilePath`). Si descargas un mod creado en otra computadora o tu usuario de Windows difiere, el motor no encuentra esa ruta previa en tu disco y muestra este diálogo.
+- **Solución en 2 clics**:
+  1. Cuando el juego muestre el aviso o diálogo de búsqueda de archivo, haz clic en el botón para explorar archivos.
+  2. Entra a la carpeta de tu mod dentro de `%localappdata%\Pagoda\Saved\ImportedSongs\<Carpeta>\` y selecciona el archivo **`audio.ogg`**.
+  3. El juego re-enlaza la ruta absoluta en tu PC automáticamente en `Meta.json` y queda guardado para siempre.
+
+### 2. La canción no aparece en la lista de canciones importadas
+- Asegúrate de haber pegado la carpeta directamente dentro de `%localappdata%\Pagoda\Saved\ImportedSongs\`.
+- Comprueba que no haya carpetas duplicadas (ejemplo: `ImportedSongs/MiCancion/MiCancion/Meta.json`). La estructura debe ser directa:
+  ```text
+  %localappdata%\Pagoda\Saved\ImportedSongs\
+      └── MiCancion\
+              ├── audio.ogg
+              └── Meta.json
+  ```
+
+### 3. El ritmo o los golpes se sienten desfasados respecto a la música
+- En el **Paso 2** del asistente, reproduce la canción con el **Metrónomo** activado.
+- Utiliza el control de **Primer pulso (Offset)** para calibrar milimétricamente el inicio del compás antes de exportar el mod.
+
+---
+
 ## Políticas de Seguridad, Privacidad y Aviso Legal (DMCA)
 
 - **Privacidad de Datos (Cero Recopilación)**: La aplicación no toma, recopila ni guarda datos de los usuarios. Lo único que utiliza es el archivo de audio que proporcionas para procesar la sincronización rítmica en la memoria RAM local, sin almacenarlo en ninguna base de datos ni servidor externo.
