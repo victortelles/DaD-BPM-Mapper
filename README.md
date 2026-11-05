@@ -97,7 +97,32 @@ Cada paquete exportado genera la estructura exacta requerida por Unreal Engine /
 
 ---
 
-## Instalación, Ejecución Local y Pruebas
+## Ejecución Rápida (1 Clic) / Quick Launcher
+
+Para usuarios y creadores de contenido que desean iniciar el estudio inmediatamente sin comandos manuales de consola:
+
+### En Windows
+1. Haz doble clic en el archivo **`run.bat`** en la carpeta principal (o ejecuta `.\run.bat` desde PowerShell / CMD).
+2. El launcher comprobará la presencia de Python 3.10+, configurará el entorno virtual aislado (`.venv`), sincronizará las librerías necesarias y abrirá automáticamente el estudio en tu navegador web en **`http://localhost:8501`**.
+
+### En macOS y Linux
+1. Abre una terminal en el directorio del proyecto.
+2. Otorga permisos de ejecución al script (solo la primera vez) y ejecútalo:
+   ```bash
+   chmod +x run.sh
+   ./run.sh
+   ```
+3. El launcher creará el entorno virtual `.venv` y lanzará la aplicación web en tu navegador.
+
+#### Requisitos del Launcher
+- **Python 3.10 o superior** (descárgalo desde [python.org/downloads](https://www.python.org/downloads/)).
+  - *En Windows:* Recuerda marcar la casilla **"Add python.exe to PATH"** durante el instalador.
+  - *En Ubuntu/Debian:* Asegúrate de tener instalado el soporte venv: `sudo apt install python3-venv`.
+- **FFmpeg** instalado en el sistema (opcional, para acelerar la transcodificación).
+
+---
+
+## Instalación Manual Avanzada, Ejecución Local y Pruebas
 
 ### 1. Prerrequisitos
 - **Python 3.10+** (recomendado Python 3.12).
@@ -147,6 +172,22 @@ pytest tests/test_architecture_limits.py tests/test_e2e_workflow.py -v
 ### 3. El ritmo o los golpes se sienten desfasados respecto a la música
 - En el **Paso 2** del asistente, reproduce la canción con el **Metrónomo** activado.
 - Utiliza el control de **Primer pulso (Offset)** para calibrar milimétricamente el inicio del compás antes de exportar el mod.
+
+### 4. Errores con el Launcher de 1 Clic (`run.bat` / `run.sh`)
+- **"Python 3.10+ no encontrado / Python 3.10+ not found"**:
+  1. Comprueba si tienes Python instalado ejecutando `py -3 --version` o `python --version` en tu terminal.
+  2. Si no tienes Python o tu versión es inferior a 3.10, descárgalo e instálalo desde [python.org/downloads](https://www.python.org/downloads/).
+  3. En Windows, asegúrate de marcar la casilla **"Add python.exe to PATH"** en el instalador.
+- **Bloqueo por directiva de PowerShell (ExecutionPolicy)**:
+  El archivo `run.bat` ejecuta PowerShell automáticamente con `-ExecutionPolicy Bypass`. Si intentas ejecutar `run_windows.ps1` directamente y la consola de Windows lo bloquea, inicia siempre la aplicación a través de `run.bat` o ejecuta:
+  ```powershell
+  powershell.exe -ExecutionPolicy Bypass -File .\launchers\run_windows.ps1
+  ```
+- **Error al crear entorno virtual en Linux (`python3 -m venv .venv`)**:
+  En distribuciones como Ubuntu o Debian, instala el soporte oficial de entornos virtuales:
+  ```bash
+  sudo apt install python3-venv
+  ```
 
 ---
 

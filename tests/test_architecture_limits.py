@@ -8,16 +8,16 @@ from typing import List
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 MAX_LOC = 400
-SCANNED_DIRS = ("audio_analysis", "export", "models", "ui", "tests")
-SCANNED_EXTENSIONS = {".py", ".html", ".js", ".css"}
+SCANNED_DIRS = ("audio_analysis", "export", "models", "ui", "tests", "launchers")
+SCANNED_EXTENSIONS = {".py", ".html", ".js", ".css", ".ps1", ".sh", ".bat"}
 DOMAIN_DIRS = ("models", "audio_analysis", "export")
 
 
 def _collect_target_files() -> List[Path]:
     files: List[Path] = []
-    app_file = REPO_ROOT / "app.py"
-    if app_file.is_file():
-        files.append(app_file)
+    for root_file in (REPO_ROOT / "app.py", REPO_ROOT / "run.bat", REPO_ROOT / "run.sh"):
+        if root_file.is_file():
+            files.append(root_file)
 
     for folder_name in SCANNED_DIRS:
         folder = REPO_ROOT / folder_name
