@@ -178,7 +178,32 @@ The codebase enforces strict Single Responsibility (**S.O.L.I.D**) and an automa
 
 ---
 
-## Installation, Local Execution & Testing
+## Quick Start (1-Click Launcher) / Ejecución Rápida
+
+For users and modders looking to launch the studio immediately without manual console setups:
+
+### On Windows
+1. Double-click the **`run.bat`** file in the repository root (or run `.\run.bat` from PowerShell / CMD).
+2. The launcher will automatically verify Python 3.10+, provision an isolated virtual environment (`.venv`), synchronize required packages, and open the studio in your default browser at **`http://localhost:8501`**.
+
+### On macOS and Linux
+1. Open a terminal in the project directory.
+2. Grant execute permissions (first run only) and run the script:
+   ```bash
+   chmod +x run.sh
+   ./run.sh
+   ```
+3. The launcher will create the `.venv` environment and launch the web app in your browser.
+
+#### Launcher Prerequisites
+- **Python 3.10 or higher** (download from [python.org/downloads](https://www.python.org/downloads/)).
+  - *On Windows:* Make sure to check **"Add python.exe to PATH"** in the installer.
+  - *On Ubuntu/Debian:* Ensure the venv package is installed: `sudo apt install python3-venv`.
+- **FFmpeg** installed on your system (optional, accelerates audio transcoding).
+
+---
+
+## Manual Advanced Installation, Local Execution & Testing
 
 ### 1. Prerequisites
 - **Python 3.10+** (Python 3.12 recommended).
@@ -233,6 +258,22 @@ pytest tests/test_architecture_limits.py tests/test_e2e_workflow.py -v
 ### 3. The rhythm feels offset or desynchronized
 - In **Step 2** of the wizard, play the song with the **Metronome** enabled.
 - Adjust the **First Beat Offset** slider to calibrate the downbeat timing precisely before generating the mod ZIP.
+
+### 4. 1-Click Launcher Troubleshooting (`run.bat` / `run.sh`)
+- **"Python 3.10+ no encontrado / Python 3.10+ not found"**:
+  1. Check your installed Python version by executing `py -3 --version` or `python --version` in your terminal.
+  2. If Python is missing or older than 3.10, download and install it from [python.org/downloads](https://www.python.org/downloads/).
+  3. On Windows, make sure to check **"Add python.exe to PATH"** in the installer.
+- **PowerShell ExecutionPolicy restriction**:
+  `run.bat` invokes PowerShell automatically with `-ExecutionPolicy Bypass`. If you run `run_windows.ps1` directly in PowerShell and your system blocks script execution, use `run.bat` or run:
+  ```powershell
+  powershell.exe -ExecutionPolicy Bypass -File .\launchers\run_windows.ps1
+  ```
+- **Virtual environment creation failure on Linux (`python3 -m venv .venv`)**:
+  On Debian or Ubuntu distributions, install the system venv package:
+  ```bash
+  sudo apt install python3-venv
+  ```
 
 ---
 
